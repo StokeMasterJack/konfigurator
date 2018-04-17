@@ -1,0 +1,170 @@
+#generated spa.jsp and tc/index.jsp
+**/webapp/tc/index.jsp
+**/webapp/spa.jsp
+
+
+#dave
+tmp/
+tmp.js
+tmp.xml
+tmp.html
+tmp.java
+tmp.sql
+scratch/
+
+# Java Files
+*.class
+*.jar
+*.war
+*.ear
+
+# Maven
+target/
+*.ser
+*.ec
+
+#React
+build/
+bundle.js
+bundle.*
+
+# Eclipse
+.classpath
+.project
+.settings/
+.metadata/
+
+# OS X
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.Spotlight-V100
+.Trashes
+
+# Text Mate
+*.tmproj
+*.tmproject
+tmtags
+
+
+
+# GWT
+gwt_bree/
+gwt-unitCache/
+.apt_generated/
+WEB-INF/deploy/
+WEB-INF/classes/
+
+
+##############
+From git hub
+##############
+
+# Compiled source #
+###################
+*.com
+*.class
+*.dll
+*.exe
+*.o
+*.so
+
+# Packages #
+############
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip
+
+# Logs and databases #
+######################
+*.log
+*.sqlite
+
+# OS generated files #
+######################
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Icon?
+ehthumbs.db
+Thumbs.db
+
+#js things
+####################
+node_modules
+dist
+.tmp
+.sass-cache
+bower_components
+webpackCache/
+
+
+# *** IntelliJ
+# ***   Below entires are from:
+# ***   https://intellij-support.jetbrains.com/hc/en-us/articles/206544839-How-to-manage-projects-under-Version-Control-Systems
+
+
+# User-specific stuff:
+.idea/**/workspace.xml
+.idea/**/tasks.xml
+.idea/dictionaries
+
+# Sensitive or high-churn files:
+.idea/**/dataSources/
+.idea/**/dataSources.ids
+.idea/**/dataSources.xml
+.idea/**/dataSources.local.xml
+.idea/**/sqlDataSources.xml
+.idea/**/dynamic.xml
+.idea/**/uiDesigner.xml
+
+# Gradle:
+build/
+.idea/**/gradle.xml
+.idea/**/libraries
+
+*.iml
+.idea/workspace.xml - remove # and delete .idea if it better suit your needs.
+.gradle
+build/
+.navigation
+captures/
+output.json
+
+# CMake
+cmake-build-debug/
+
+# Mongo Explorer plugin:
+.idea/**/mongoSettings.xml
+
+## File-based project format:
+*.iws
+
+## Plugin-specific files:
+
+# IntelliJ
+out/
+
+# mpeltonen/sbt-idea plugin
+.idea_modules/
+
+# JIRA plugin
+atlassian-ide-plugin.xml
+
+# Cursive Clojure plugin
+.idea/replstate.xml
+
+# Crashlytics plugin (for Android Studio and IntelliJ)
+com_crashlytics_export_strings.xml
+crashlytics.properties
+crashlytics-build.properties
+fabric.properties
