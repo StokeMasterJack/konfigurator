@@ -72,16 +72,6 @@ class SimpleExampleTest {
 
     }
 
-
-    /*
-    conflict(a, b)
-            conflict(a, c)
-            requires(a, d)
-            requires(d, or(e, f))
-            requires(f, and(g, h, a))
-            xor(red, green)
-            requires(green, a)
-     */
     @Test
     fun testPosB1() {
         with(expFactory) {
