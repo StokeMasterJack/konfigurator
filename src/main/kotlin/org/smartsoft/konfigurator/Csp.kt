@@ -1,75 +1,100 @@
 package org.smartsoft.konfigurator
 
-class Csp(val vars: Set<Var>, val constraint: Exp, val picks: Set<Lit> = emptySet()) {
 
-    val isFailed: Boolean get() = constraint === False
+class Csp(val expFactory: ExpFactory, val constraint: Exp, val picks: Set<Lit> = emptySet()) {
+
+    val isFailed: Boolean
+        get() = constraint is False
+
 
     val effectiveConstraint: Exp
         get() = when (constraint) {
-            False -> False
-            True -> True
-            is Lit -> True
-            is LitAnd -> True
+            is False -> expFactory.mkFalse()
+            is True -> expFactory.mkTrue()
+            is Lit -> expFactory.mkTrue()
+            is LitAnd -> expFactory.mkTrue()
             is MixedAnd -> when (constraint.constraint) {
                 is ComplexAnd -> constraint.constraint
-                is NonAndComplex -> constraint.constraint
+                is NonAnd -> constraint.constraint
                 else -> throw IllegalStateException()
             }
             is ComplexAnd -> constraint
-            is NonAndComplex -> constraint
+            is NonAnd -> constraint
         }
+
 
     val effectiveConstraints: List<Exp>
         get() {
             val c = effectiveConstraint
             return when (c) {
                 is Constant -> emptyList()
-                is ComplexAnd -> c.expList
-                is NonAndComplex -> listOf(c)
+                is ComplexAnd -> c.exps.toList()
+                is NonAnd -> listOf(c)
                 else -> throw IllegalStateException(c.toStringDetail())
             }
         }
 
-    val lits: LitAnd
+
+    val lits: Assignment
         get() = when (constraint) {
-            False -> LitAnd.empty()
-            True -> LitAnd.empty()
-            is Lit -> constraint.asLitAnd
+            is False -> LitAnd.EMPTY
+            is True -> LitAnd.EMPTY
+            is Lit -> LitAnd.create(constraint)
             is LitAnd -> constraint
             is MixedAnd -> constraint.lits
-            is ComplexAnd -> LitAnd.empty()
-            is NonAndComplex -> LitAnd.empty()
+            is ComplexAnd -> LitAnd.EMPTY
+            is NonAnd -> LitAnd.EMPTY
         }
 
     fun dontCares(): Set<Var> {
         return vars - constraint.vars
     }
 
-    fun isSat(): Boolean {
-        return constraint.isSat()
-    }
+    val vars: Set<Var> get() = expFactory.vars
 
-    fun careVars(): Set<Var> {
-        return effectiveConstraint.vars - lits.vars
+    fun isSat(): Boolean {
+        return constraint.isSat(expFactory)
     }
 
     fun toDnnf(): Exp {
-        return constraint.toDnnf()
+        return constraint.toDnnf(expFactory)
     }
 
-    fun deepInfer(): Set<Lit> {
-        if (constraint is Constant) LitAnd.empty()
-        val careVars = careVars()
-        val a = mutableSetOf<Lit>()
-        for (careVar in careVars) {
-            val pLit = careVar.lit(true)
-            val nLit = careVar.lit(false)
-            val pSat = assign(pLit).isSat()
-            val nSat = assign(nLit).isSat()
-            if (!pSat) a.add(pLit)
-            if (!nSat) a.add(nLit)
+    private fun deepInfer(c: Exp): List<Lit> {
+        return if (c is Simple) {
+            emptyList()
+        } else if (c is LitAnd) {
+            emptyList()
+        } else if (c is MixedAnd) {
+            if (c.disjoint) {
+                deepInfer(c.constraint)
+            } else {
+                deepInfer(c.maybeSimplify(expFactory))
+            }
+        } else {
+            require(c is ComplexAnd || c is NonAnd)
+            val careVars = c.vars
+            val inferredLits = mutableListOf<Lit>()
+            for (careVar in careVars) {
+                val pLit = careVar.lit(true)
+                val nLit = careVar.lit(false)
+                val pSat = assign(pLit).isSat()
+                if (!pSat) {
+                    inferredLits.add(nLit)
+                } else {
+                    val nSat = assign(nLit).isSat()
+                    if (!nSat) {
+                        inferredLits.add(pLit)
+                    }
+                }
+            }
+            inferredLits
         }
-        return a
+
+    }
+
+    fun deepInfer(): List<Lit> {
+        return deepInfer(constraint)
     }
 
     fun print() {
@@ -77,25 +102,20 @@ class Csp(val vars: Set<Var>, val constraint: Exp, val picks: Set<Lit> = emptySe
         if (isFailed) {
             println("  Failed")
         } else {
-            println("  Lits: ${lits.sorted}")
-            println("  tLits: ${lits.lits1.filter { it.sign }.sorted()}")
+            println("  Lits: ${lits.asIterable.sorted()}")
             println("  DontCares: ${dontCares()}")
-            println("  Constraint: ${effectiveConstraint.toString()}")
+            println("  Constraint: $effectiveConstraint")
             println("  Constraints: ")
             for (exp in effectiveConstraints) {
                 println("    $exp")
             }
-
             println("  isSat: ${isSat()}")
             println("  deepInfer: ${deepInfer()}")
             val dnnf = toDnnf()
             println("  dnnf: $dnnf")
             check(dnnf.isDisjointDeep())
         }
-
         println()
-
-
     }
 
     fun assign(vararg args: Lit): Csp {
@@ -103,18 +123,18 @@ class Csp(val vars: Set<Var>, val constraint: Exp, val picks: Set<Lit> = emptySe
     }
 
     fun assign(args: Set<Lit>): Csp {
-        val lits = MutableLitAnd(args)
-        val s = when {
-            lits.isFailed() -> False
-            else -> constraint.assign(lits)
-        }
-        return Csp(vars, s, picks + args)
+        val lits = LitAndBuilder().assignLits(args)
+        if (lits.isFailed()) throw IllegalArgumentException("Conflicting assignment: [${lits.conflictLit}]")
+        val aa = lits.mkAssignment()
+        val s: Exp = constraint.assign(aa, expFactory)
+        val newPics: Set<Lit> = picks + args
+        return Csp(expFactory, s, newPics)
     }
 
     fun maybeSimplify(): Csp {
-        val s = constraint.maybeSimplify()
+        val s = constraint.maybeSimplify(expFactory)
         if (s == constraint) return this
-        return Csp(vars, s)
+        return Csp(expFactory, s)
     }
 
     override fun equals(other: Any?): Boolean {
@@ -124,7 +144,7 @@ class Csp(val vars: Set<Var>, val constraint: Exp, val picks: Set<Lit> = emptySe
     }
 
     fun checkLits(vararg expected: Lit) {
-        assertEquals(expected.toSet(), lits.toSet())
+        assertEquals(expected.toSet(), lits.asIterable.toSet())
     }
 
     fun checkDontCares(vararg expected: Var) {
@@ -136,7 +156,7 @@ class Csp(val vars: Set<Var>, val constraint: Exp, val picks: Set<Lit> = emptySe
     }
 
     fun checkConstraintEmpty() {
-        check(effectiveConstraint === True)
+        check(effectiveConstraint is True)
     }
 
     fun checkFailed() {
@@ -154,27 +174,27 @@ class Csp(val vars: Set<Var>, val constraint: Exp, val picks: Set<Lit> = emptySe
 
     fun assertEquals(expected: Set<Lit>, actual: Set<Lit>) {
         if (expected != actual) {
-            println("expected = ${expected.toList().sorted()}")
-            println("actual   = ${actual.toList().sorted()}")
-            throw IllegalStateException("expected[${expected.toList().sorted()}]  actual[${actual.toList().sorted()}]")
+            println("expected = ${expected.sorted()}")
+            println("actual   = ${actual.sorted()}")
+            throw IllegalStateException("expected[${expected.sorted()}]  actual[${actual.sorted()}]")
         }
     }
 
     fun assertEquals(expected: String, actual: String) {
         if (expected != actual) {
-            println("expected = ${expected}")
-            println("actual   = ${actual}")
+            println("expected = $expected")
+            println("actual   = $actual")
             throw IllegalStateException("expected[$expected]  actual[$actual]")
         }
     }
 
     fun allSat(callback: AllSatCallback) {
-        constraint.allSat(vars, callback)
+        constraint.allSat(vars, callback, expFactory)
     }
 
     fun satCount(): Long {
         val counter = Counter()
-        constraint.satCount(vars, counter)
+        constraint.satCount(vars, counter, expFactory)
         return counter.cnt
     }
 

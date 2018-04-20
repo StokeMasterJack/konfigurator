@@ -2,8 +2,8 @@
 <project version="4">
   <component name="CompilerConfiguration">
     <bytecodeTargetLevel>
-      <module name="k-csp_main" target="1.8" />
-      <module name="k-csp_test" target="1.8" />
+      <module name="konfigurator_main" target="1.9" />
+      <module name="konfigurator_test" target="1.9" />
     </bytecodeTargetLevel>
   </component>
 </project>

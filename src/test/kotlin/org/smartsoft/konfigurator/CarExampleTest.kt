@@ -8,18 +8,18 @@ import kotlin.test.assertEquals
 
 class CarExampleTest {
 
-    lateinit var vars: CarExample
+    lateinit var expFactory: CarExample
     lateinit var csp: Csp
 
     @Before
     fun setup() {
-        vars = CarExample()
-        csp = vars.buildCsp()
+        expFactory = CarExample()
+        csp = expFactory.buildCsp()
     }
 
     @Test
     fun test1() {
-        with(vars) {
+        with(expFactory) {
             val csp1 = csp.assign(L4, Base, T6AT)
             val csp2 = csp.assign(T2514)
             assertEquals(csp1.effectiveConstraint, csp2.effectiveConstraint)

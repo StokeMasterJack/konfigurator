@@ -5,21 +5,20 @@ import org.smartsoft.konfigurator.data.SimpleExample
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-
 class SimpleExampleTest {
 
-    lateinit var vars: SimpleExample
+    lateinit var expFactory: SimpleExample
     lateinit var csp: Csp
 
     @Before
     fun setup() {
-        vars = SimpleExample()
-        csp = vars.buildCsp()
+        expFactory = SimpleExample()
+        csp = expFactory.buildCsp()
     }
 
     @Test
     fun testPosA() {
-        with(vars) {
+        with(expFactory) {
             assertEquals(csp, csp.maybeSimplify())
             csp.assign(a).apply {
                 checkLits(a, !b, !c, d)
@@ -53,7 +52,7 @@ class SimpleExampleTest {
 
     @Test
     fun testNegA() {
-        with(vars) {
+        with(expFactory) {
             csp.assign(!a).apply {
                 checkLits(!a, !f, !green, red)
                 checkDontCares(b, c, g, h, i)
@@ -73,9 +72,44 @@ class SimpleExampleTest {
 
     }
 
+
+    /*
+    conflict(a, b)
+            conflict(a, c)
+            requires(a, d)
+            requires(d, or(e, f))
+            requires(f, and(g, h, a))
+            xor(red, green)
+            requires(green, a)
+     */
+    @Test
+    fun testPosB1() {
+        with(expFactory) {
+            csp.assign(b).apply {
+                checkLits(!a, b, !f, !green, red)
+                checkDontCares(c, g, h, i)
+                checkConstraint("Requires[d, e]")
+                checkSat()
+            }.assign(d).apply {
+                checkLits(!a, b, d, e, !f, !green, red)
+                checkDontCares(c, g, h, i)
+                checkConstraintEmpty()
+                checkSat()
+            }.assign(c, g, h, i).apply {
+                checkLits(!a, b, c, d, e, !f, g, !green, h, i, red)
+                checkDontCares()
+                checkConstraintEmpty()
+                checkSat()
+            }.assign(a).apply {
+                checkFailed()
+                checkNotSat()
+            }
+        }
+    }
+
     @Test
     fun testPosB() {
-        with(vars) {
+        with(expFactory) {
             csp.assign(b).apply {
                 checkLits(!a, b, !f, !green, red)
                 checkDontCares(c, g, h, i)
@@ -100,11 +134,11 @@ class SimpleExampleTest {
 
     @Test
     fun testNegB() {
-        with(vars) {
+        with(expFactory) {
             val csp1 = csp.assign(!b).apply {
                 checkLits(!b)
                 checkDontCares(i)
-                checkConstraint("And[Conflict[a, c], Requires[a, d], Requires[d, Or[e, f]], Requires[f, And[a, g, h]], Requires[green, a], Xor[green, red]]")
+                checkConstraint("And[Conflict[a, c], Requires[a, d], Requires[green, a], Requires[d, Or[e, f]], Requires[f, And[a, g, h]], Xor[green, red]]")
                 checkSat()
             }.assign(green).apply {
                 checkLits(a, !b, !c, d, green, !red)
@@ -131,7 +165,7 @@ class SimpleExampleTest {
 
     @Test
     fun testPosC() {
-        with(vars) {
+        with(expFactory) {
             val csp1 = csp.assign(c).apply {
                 checkLits(!a, c, !f, !green, red)
                 checkDontCares(b, g, h, i)
@@ -157,17 +191,17 @@ class SimpleExampleTest {
 
     @Test
     fun testNegC() {
-        with(vars) {
+        with(expFactory) {
 
             val csp1 = csp.assign(!c).apply {
                 checkLits(!c)
                 checkDontCares(i)
-                checkConstraint("And[Conflict[a, b], Requires[a, d], Requires[d, Or[e, f]], Requires[f, And[a, g, h]], Requires[green, a], Xor[green, red]]")
+                checkConstraint("And[Conflict[a, b], Requires[a, d], Requires[green, a], Requires[d, Or[e, f]], Requires[f, And[a, g, h]], Xor[green, red]]")
                 checkSat()
             }.assign(!h).apply {
                 checkLits(!c, !f, !h)
                 checkDontCares(i, g)
-                checkConstraint("And[Conflict[a, b], Requires[a, d], Requires[d, e], Requires[green, a], Xor[green, red]]")
+                checkConstraint("And[Conflict[a, b], Requires[a, d], Requires[green, a], Requires[d, e], Xor[green, red]]")
                 checkSat()
             }.assign(d).apply {
                 checkLits(!c, d, e, !f, !h)
@@ -195,12 +229,12 @@ class SimpleExampleTest {
 
     @Test
     fun testPosD() {
-        with(vars) {
+        with(expFactory) {
 
             val csp1 = csp.assign(d).apply {
                 checkLits(d)
                 checkDontCares(i)
-                checkConstraint("And[Conflict[a, b], Conflict[a, c], Or[e, f], Requires[f, And[a, g, h]], Requires[green, a], Xor[green, red]]")
+                checkConstraint("And[Conflict[a, b], Conflict[a, c], Or[e, f], Requires[green, a], Requires[f, And[a, g, h]], Xor[green, red]]")
                 checkSat()
             }.assign(green).apply {
                 checkLits(a, !b, !c, d, green, !red)
@@ -228,7 +262,7 @@ class SimpleExampleTest {
 
     @Test
     fun testNegD() {
-        with(vars) {
+        with(expFactory) {
             csp.assign(!d).apply {
                 checkLits(!a, !d, !green, !f, red)
                 checkDontCares(b, c, e, g, h, i)
@@ -240,7 +274,7 @@ class SimpleExampleTest {
 
     @Test
     fun testPosE() {
-        with(vars) {
+        with(expFactory) {
             csp.assign(e, green).apply {
                 checkLits(a, !b, !c, d, e, green, !red)
                 checkDontCares(i)
@@ -262,7 +296,7 @@ class SimpleExampleTest {
 
     @Test
     fun testNegE() {
-        with(vars) {
+        with(expFactory) {
             csp.assign(!e, !f).apply {
                 checkLits(!a, !d, !e, !f, !green, red)
                 checkDontCares(b, c, i, g, h)
@@ -274,7 +308,7 @@ class SimpleExampleTest {
 
     @Test
     fun testPosF() {
-        with(vars) {
+        with(expFactory) {
             csp.assign(f).apply {
                 checkLits(a, !b, !c, d, f, g, h)
                 checkDontCares(e, i)
@@ -291,11 +325,11 @@ class SimpleExampleTest {
 
     @Test
     fun testNegF() {
-        with(vars) {
+        with(expFactory) {
             csp.assign(!f).apply {
                 checkLits(!f)
                 checkDontCares(g, h, i)
-                checkConstraint("And[Conflict[a, b], Conflict[a, c], Requires[a, d], Requires[d, e], Requires[green, a], Xor[green, red]]")
+                checkConstraint("And[Conflict[a, b], Conflict[a, c], Requires[a, d], Requires[green, a], Requires[d, e], Xor[green, red]]")
                 checkSat()
             }.assign(a).apply {
                 checkLits(a, !b, !c, d, e, !f)
@@ -313,16 +347,16 @@ class SimpleExampleTest {
 
     @Test
     fun testPosG() {
-        with(vars) {
+        with(expFactory) {
             csp.assign(g).apply {
                 checkLits(g)
                 checkDontCares(i)
-                checkConstraint("And[Conflict[a, b], Conflict[a, c], Requires[a, d], Requires[d, Or[e, f]], Requires[f, And[a, h]], Requires[green, a], Xor[green, red]]")
+                checkConstraint("And[Conflict[a, b], Conflict[a, c], Requires[a, d], Requires[green, a], Requires[d, Or[e, f]], Requires[f, And[a, h]], Xor[green, red]]")
                 checkSat()
             }.assign(h).apply {
                 checkLits(g, h)
                 checkDontCares(i)
-                checkConstraint("And[Conflict[a, b], Conflict[a, c], Requires[a, d], Requires[d, Or[e, f]], Requires[f, a], Requires[green, a], Xor[green, red]]")
+                checkConstraint("And[Conflict[a, b], Conflict[a, c], Requires[a, d], Requires[f, a], Requires[green, a], Requires[d, Or[e, f]], Xor[green, red]]")
                 checkSat()
             }.assign(a).apply {
                 checkLits(a, !b, !c, d, g, h)
@@ -346,11 +380,11 @@ class SimpleExampleTest {
 
     @Test
     fun testNegG() {
-        with(vars) {
+        with(expFactory) {
             csp.assign(!g).apply {
                 checkLits(!f, !g)
                 checkDontCares(h, i)
-                checkConstraint("And[Conflict[a, b], Conflict[a, c], Requires[a, d], Requires[d, e], Requires[green, a], Xor[green, red]]")
+                checkConstraint("And[Conflict[a, b], Conflict[a, c], Requires[a, d], Requires[green, a], Requires[d, e], Xor[green, red]]")
                 checkSat()
             }.assign(!a).apply {
                 checkLits(!a, !f, !g, !green, red)
@@ -369,11 +403,11 @@ class SimpleExampleTest {
 
     @Test
     fun testPosH() {
-        with(vars) {
+        with(expFactory) {
             csp.assign(h).apply {
                 checkLits(h)
                 checkDontCares(i)
-                checkConstraint("And[Conflict[a, b], Conflict[a, c], Requires[a, d], Requires[d, Or[e, f]], Requires[f, And[a, g]], Requires[green, a], Xor[green, red]]")
+                checkConstraint("And[Conflict[a, b], Conflict[a, c], Requires[a, d], Requires[green, a], Requires[d, Or[e, f]], Requires[f, And[a, g]], Xor[green, red]]")
                 checkSat()
             }.assign(red).apply {
                 checkLits(h, !green, red)
@@ -401,11 +435,11 @@ class SimpleExampleTest {
 
     @Test
     fun testNegH() {
-        with(vars) {
+        with(expFactory) {
             val csp1 = csp.assign(!h).apply {
                 checkLits(!f, !h)
                 checkDontCares(g, i)
-                checkConstraint("And[Conflict[a, b], Conflict[a, c], Requires[a, d], Requires[d, e], Requires[green, a], Xor[green, red]]")
+                checkConstraint("And[Conflict[a, b], Conflict[a, c], Requires[a, d], Requires[green, a], Requires[d, e], Xor[green, red]]")
                 checkSat()
             }.assign(a).apply {
                 checkLits(a, !b, !c, d, e, !f, !h)
@@ -427,7 +461,7 @@ class SimpleExampleTest {
 
     @Test
     fun testPosGreen() {
-        with(vars) {
+        with(expFactory) {
             val csp1 = csp.assign(green).apply {
                 checkLits(a, !b, !c, d, green, !red)
                 checkDontCares(i)
@@ -447,7 +481,7 @@ class SimpleExampleTest {
 
     @Test
     fun testNegGreen() {
-        with(vars) {
+        with(expFactory) {
             val csp1 = csp.assign(!green).apply {
                 checkLits(!green, red)
                 checkDontCares(i)

@@ -1,28 +1,28 @@
 package org.smartsoft.konfigurator
 
-fun Exp.isSat(): Boolean {
+fun Exp.isSat(f: ExpFactory): Boolean {
     return when (this) {
-        False -> false
-        True -> true
+        is False -> false
+        is True -> true
         is Lit -> true
-        is LitAnd -> !isFailed()
+        is LitAnd -> true
         is MixedAnd -> {
             if (disjoint) {
-                constraint.isSat()
+                constraint.isSat(f)
             } else {
-                constraint.maybeSimplify().isSat()
+                constraint.maybeSimplify(f).isSat(f)
             }
         }
         is Complex -> {
-            check(this is ComplexAnd || this is NonAndComplex)
+            check(this is ComplexAnd || this is NonAnd)
             val pLit = this.chooseDecisionVar()
             val nLit = pLit.neg
-            val pExp = assign(pLit)
-            return if (pExp.isSat()) {
+            val pExp = assign(pLit, f)
+            return if (pExp.isSat(f)) {
                 true
             } else {
-                val nExp = assign(nLit)
-                nExp.isSat()
+                val nExp = assign(nLit, f)
+                nExp.isSat(f)
             }
         }
     }

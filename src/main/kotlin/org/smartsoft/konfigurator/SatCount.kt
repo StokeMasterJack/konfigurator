@@ -13,7 +13,7 @@ class Counter {
 
 }
 
-fun Exp.satCount(vars: Set<Var>, counter: Counter) {
+fun Exp.satCount(vars: Set<Var>, counter: Counter, f: ExpFactory) {
 
     return when (this) {
         is Constant -> throw IllegalStateException()
@@ -28,15 +28,15 @@ fun Exp.satCount(vars: Set<Var>, counter: Counter) {
         }
         is Complex -> {
 
-            check(this is ComplexAnd || this is NonAndComplex || this is MixedAnd)
+            check(this is ComplexAnd || this is NonAnd || this is MixedAnd)
             val dVar = chooseDecisionVar()
             val pLit = dVar.lit(true)
             val nLit = dVar.lit(false)
-            val pExp = assign(pLit)
-            val nExp = assign(nLit)
+            val pExp = assign(pLit, f)
+            val nExp = assign(nLit, f)
 
-            pExp.satCount(vars, counter)
-            nExp.satCount(vars, counter)
+            pExp.satCount(vars, counter, f)
+            nExp.satCount(vars, counter, f)
         }
     }
 

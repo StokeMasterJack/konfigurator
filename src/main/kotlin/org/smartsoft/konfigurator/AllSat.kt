@@ -1,36 +1,26 @@
 package org.smartsoft.konfigurator
 
-
 typealias AllSatCallback = (solution: LitAnd, dontCars: Set<Var>) -> Unit
 
-fun Exp.allSat(vars: Set<Var>, callback: AllSatCallback) {
+fun Exp.allSat(vars: Set<Var>, callback: AllSatCallback, f: ExpFactory) {
 
     return when (this) {
         is Constant -> throw IllegalStateException()
         is Lit -> {
-            println("LIT")
-            callback(this.asLitAnd, vars - this.vars)
+            callback(LitAnd.create(this), vars - this.vars)
         }
         is LitAnd -> {
-            callback(this.lits, vars - this.vars)
+            callback(this, vars - this.vars)
         }
         is Complex -> {
-
-            check(this is ComplexAnd || this is NonAndComplex || this is MixedAnd)
             val dVar = chooseDecisionVar()
             val pLit = dVar.lit(true)
             val nLit = dVar.lit(false)
-            val pExp = assign(pLit)
-            val nExp = assign(nLit)
+            val pExp = assign(pLit, f)
+            val nExp = assign(nLit, f)
 
-//            if (this is MixedAnd) {
-//                println("MixedAnd: $this")
-//                println("  pExp: ${pExp::class}  $pExp")
-//                println("  nExp: ${nExp::class}  $nExp")
-//            }
-
-            pExp.allSat(vars, callback)
-            nExp.allSat(vars, callback)
+            pExp.allSat(vars, callback, f)
+            nExp.allSat(vars, callback, f)
         }
     }
 

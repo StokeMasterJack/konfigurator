@@ -1,3 +1,5 @@
+@file:Suppress("REDUNDANT_MODIFIER")
+
 package org.smartsoft.konfigurator
 
 import kotlin.reflect.KClass
@@ -7,7 +9,11 @@ import kotlin.reflect.KClass
 Exp
     Simple
         Constant
+            True
+            False
         Lit
+            Var
+            NegVar
     Complex
         And
             LitAnd
@@ -15,97 +21,33 @@ Exp
             MixedAnd
         NonAnd
             Not
-            Pair
-                Conflict
-                Requires
-                Iff
+            Conflict
+            Requires
+            Iff
             Or
+            Xor
  */
 
 typealias VarId = String
 
-object True : Constant() {
-    override fun assign(pics: Assignment): Exp = pics.asExp()
-}
-
-object False : Constant() {
-    override fun assign(pics: Assignment): Exp = False
-}
-
 sealed class Exp : Comparable<Exp> {
 
-    abstract val expFactory: ExpFactory
-
-    val f: ExpFactory get() = expFactory
-
-    abstract val exps: Iterable<Exp>
-
-    open val e1: Exp get() = throw UnsupportedOperationException(this.opDetail)
-    open val e2: Exp get() = throw UnsupportedOperationException(this.opDetail)
-
-    val expList: List<Exp> get() = exps.toList()
-
-    /**
-     * Number of child expressions
-     */
-    abstract val size: Int
-
-    companion object {
-
-        fun ensureNoConstants(exps: Iterable<Exp>) {
-            check(exps.all { it !is Constant }, { exps })
-        }
-
-        fun ensureNoLits(exps: Iterable<Exp>) {
-            check(exps.all { it !is Lit }, { exps })
-        }
-
-        fun ensureNoAnds(exps: Iterable<Exp>) {
-            check(exps.all { it !is And }, { exps })
-        }
-
-        fun ensureNoConstants(e1: Exp, e2: Exp) {
-            check(e1 !is Constant)
-            check(e2 !is Constant)
-        }
-
-        fun computeVars(exps: Iterable<Exp>): Set<Var> {
-            return exps.flatMap { it.vars }.toSet()
-        }
-
-        fun eq(e1: LitAnd, e2: LitAnd): Boolean {
-            return e1.map == e2.map
-        }
-
-        fun eq(e1: Complex, e2: Complex): Boolean {
-            if (e1.size != e2.size) return false
-            val exps1 = e1.exps.sorted()
-            val exps2 = e2.exps.sorted()
-            for (i in 0 until e1.size) {
-                if (exps1[i] != exps2[i]) return false
-            }
-            return true
-        }
-
-        fun eqReq(ths: Requires, other: Requires): Boolean {
-            if (ths.e1 != other.e1) return false
-            if (ths.e2 != other.e2) return false
-            return true
-        }
-
-
-    }
-
+    abstract val vars: Set<Var>
 
     override fun equals(other: Any?): Boolean {
         if (other == null) return false
-        if (this::class != other::class) return false
         if (this === other) return true
         return when (this) {
             is Simple -> this === other
-            is LitAnd -> eq(this, other as LitAnd)
-            is Requires -> eqReq(this, other as Requires)
-            is Complex -> eq(this, other as Complex)
+            is Not -> other is Not && eq(other)
+            is Iff -> other is Iff && eq(other)
+            is Conflict -> other is Iff && eq(other)
+            is Requires -> other is Requires && eq(other)
+            is LitAnd -> other is LitAnd && eq(other)
+            is MixedAnd -> other is MixedAnd && eq(other)
+            is ComplexAnd -> other is ComplexAnd && eq(other)
+            is Xor -> other is Xor && eq(other)
+            is Or -> other is Or && eq(other)
         }
     }
 
@@ -134,38 +76,19 @@ sealed class Exp : Comparable<Exp> {
 
     }
 
-    abstract val vars: Set<Var>
-
-    fun containsAllVars(a: Assignment) = when (this) {
-        is Constant -> {
-            false
-        }
-        is Lit -> when (a) {
-            is Lit -> a.vr === vr
-            is LitAnd -> a.containsVar(vr)
-            else -> throw IllegalStateException()
-        }
-        else -> when (a) {
-            is Lit -> containsVar(a.vr)
-            is LitAnd -> vars.containsAll(a.vars)
-            else -> throw IllegalStateException()
-        }
-
-    }
-
     fun isDisjoint(other: Exp) = !anyOverlap(other)
-    fun isDisjoint(a: Assignment) = !anyOverlap(a)
 
-    fun anyOverlap(a: Assignment): Boolean = when (a) {
-        is Exp -> anyOverlap(a as Exp)
-        else -> throw IllegalStateException()
+    fun isDisjoint(a: Assignment) = !anyOverlap(a.asExp)
+
+    fun anyOverlap(a: Assignment): Boolean {
+        return anyOverlap(a.asExp)
     }
 
     fun anyOverlap(other: Exp): Boolean = when (this) {
         is Constant -> false
         is Lit -> when (other) {
             is Constant -> false
-            is Lit -> other.vr == vr
+            is Lit -> other.vr === vr
             else -> other.containsVar(vr)
         }
         else -> when (other) {
@@ -175,56 +98,33 @@ sealed class Exp : Comparable<Exp> {
         }
     }
 
-    fun anyOverlap(vars: Set<Var>): Boolean = when (this) {
-        is Constant -> false
-        is Lit -> vars.contains(vr)
-        is Pair -> e1.anyOverlap(vars) || e2.anyOverlap(vars)
-        else -> exps.any { it.anyOverlap(vars) }
-    }
-
     fun containsVar(v: Var): Boolean = when (this) {
         is Constant -> false
         is Lit -> vr == v
-        is Pair -> e1.containsVar(v) || e2.containsVar(v)
+        is Binary -> e1.containsVar(v) || e2.containsVar(v)
         is LitAnd -> vars.contains(v)
         is MixedAnd -> constraint.containsVar(v) || lits.containsVar(v)
         is ComplexAnd -> exps.any { it.containsVar(v) }
         is Not -> exp.containsVar(v)
-        is NonAndComplex -> exps.any { it.containsVar(v) }
+        is NonAnd -> exps.any { it.containsVar(v) }
     }
 
-    abstract fun assign(pics: Assignment): Exp
+    abstract fun assign(pics: Assignment, f: ExpFactory): Exp
 
-    abstract fun maybeSimplify(): Exp
+    abstract fun maybeSimplify(f: ExpFactory): Exp
 
-    fun maybeSimplify(lits: Assignment): Exp {
-        if (!anyOverlap(lits)) return this
-        val after = simplify(lits)
+    fun maybeSimplify(a: Assignment, f: ExpFactory): Exp {
+        if (!anyOverlap(a)) return this
+        val after = simplify(a, f)
         check(after !== this)
         return after
     }
 
-    fun maybeSimplify(lits: List<Lit>): Exp {
-        val aa = MutableLitAnd()
-        aa.assignLitsInPlace(lits)
-        return maybeSimplify(aa)
-    }
+    abstract fun simplify(assignment: Assignment, f: ExpFactory): Exp
 
-    fun maybeSimplify(vararg lits: Lit): Exp {
-        val aa = MutableLitAnd()
-        for (lit in lits) aa.assignLitInPlace(lit)
-        return maybeSimplify(aa)
-    }
-
-    abstract fun simplify(lits: Assignment): Exp
 
     val typeDetail: KClass<out Exp>
-        get() = when (this) {
-            is ComplexAnd -> ComplexAnd::class
-            is LitAnd -> LitAnd::class
-            is MixedAnd -> MixedAnd::class
-            else -> this::class
-        }
+        get() = this::class
 
     val type: KClass<out Exp>
         get() = when (this) {
@@ -232,157 +132,171 @@ sealed class Exp : Comparable<Exp> {
             else -> this::class
         }
 
-    open val op: String get() = type.simpleName!!
-    open val opDetail: String get() = typeDetail.simpleName!!
+    open val op: String
+        get() = type.simpleName!!
 
-    open val lits: LitAnd get() = throw UnsupportedOperationException()
 
-    final override fun toString(): String {
+    open val opDetail: String
+        get() = typeDetail.simpleName!!
+
+    final override fun toString() = toString(false)
+
+    fun toStringDetail() = toString(true)
+
+    fun toString(detail: Boolean): String {
+        val op = if (detail) this.opDetail else this.op
         return when (this) {
             is Constant -> op
             is Var -> id
             is NegVar -> "!${vr.id}"
-            is Requires -> "$op${exps}"
+            is Requires -> "$op$exps"
             is Complex -> "$op${exps.sorted()}"
         }
     }
 
-    fun toStringDetail(): String {
-        return when (this) {
-            is Constant -> opDetail
-            is Var -> id
-            is NegVar -> "!${vr.id}"
-            is Complex -> "$opDetail${exps.sorted()}"
-        }
-    }
-
-    fun flip(): Exp = when (this) {
-        False -> True
-        True -> False
+    fun flip(f: ExpFactory): Exp = when (this) {
+        is False -> f.mkTrue()
+        is True -> f.mkFalse()
         is Var -> neg
         is NegVar -> vr
         is Not -> exp
-        is Complex -> expFactory.mkNot(this)
+        is Complex -> f.mkNot(this)
     }
 
-    private fun compareIndex1(): Int = when (this) {
+    internal fun compareIndex1(): Int = when (this) {
         is Constant -> 1
         is Lit -> 2
         is Complex -> 3
     }
 
-    private fun compareIndex2(): Int = when (this) {
-        is Constant -> if (this === False) 1 else 2
-        is Lit -> 1
-        is Complex -> size
-    }
-
-    private fun compareLit(other: Lit) = if (this is Lit) {
-        val i = vr.id.compareTo(other.vr.id)
-        if (i != 0) {
-            i
-        } else {
-            sign.compareTo(other.sign)
+    internal fun compareIndex2(): Int = when (this) {
+        is Constant -> when (this) {
+            is True -> 1
+            is False -> 2
         }
-    } else {
-        throw IllegalStateException()
-    }
-
-
-    private fun compareExps(other: Complex): Int {
-        val i1 = this.size.compareTo(other.size)
-        if (i1 != 0) return i1
-        if (this is Complex) {
-            val it = other.exps.iterator()
-            for (exp in exps) {
-                val expOther = it.next()
-                val i2 = exp.compareTo(expOther)
-                if (i2 != 0) return i2
-            }
-            return 0
-        } else {
-            throw IllegalStateException()
+        is Lit -> when (this) {
+            is Var -> 1
+            is NegVar -> 2
+        }
+        is Complex -> when (this) {
+            is Not -> 2
+            else -> 1
         }
     }
 
     override fun compareTo(other: Exp): Int {
-        val i1 = compareIndex1().compareTo(other.compareIndex1())
+        val i1 = this.compareIndex1().compareTo(other.compareIndex1())
         if (i1 != 0) return i1
-        val i2 = compareIndex2().compareTo(other.compareIndex2())
+        val i2 = this.compareIndex2().compareTo(other.compareIndex2())
         if (i2 != 0) return i2
+
         return when (this) {
             is Constant -> throw IllegalStateException()
-            is Lit -> compareLit(other as Lit)
-            is Complex -> compareExps(other as Complex)
+            is Lit -> this.compareLit(other as Lit)
+            is Complex -> this.compareComplex(other as Complex)
         }
     }
-}
 
-fun Set<Var>.anyOverlap(vars: Set<Var>): Boolean {
-    return this.any {
-        val vv = it
-        vars.contains(vv)
+} //end Exp
+
+
+sealed class Simple : Exp()
+
+sealed class Constant : Simple() {
+
+    override val vars: Set<Var> by lazy {
+        emptySet<Var>()
     }
+
+    override fun maybeSimplify(f: ExpFactory): Exp {
+        return this
+    }
+
+    override fun simplify(assignment: Assignment, f: ExpFactory): Exp {
+        throw UnsupportedOperationException()
+    }
+
 }
 
-fun Set<Var>.isDisjoint(vars: Set<Var>) = !anyOverlap(vars)
-fun Set<Var>.isDisjoint(exp: Exp) = isDisjoint(exp.vars)
+class True : Constant() {
+    override fun assign(pics: Assignment, f: ExpFactory): Exp = pics.asExp
+}
 
-sealed class Simple : Exp() {
-    override val exps: Iterable<Exp> get() = throw UnsupportedOperationException()
-    override val e1: Exp get() = throw UnsupportedOperationException()
-    final override val size: Int get() = 0
+class False : Constant() {
+    override fun assign(pics: Assignment, f: ExpFactory): Exp = f.mkFalse()
 }
 
 sealed class Complex : Exp() {
-    override val expFactory: ExpFactory
-        get() = e1.expFactory
-}
+
+    open val exps: Iterable<Exp>
+        get() = when (this) {
+            is Not -> listOf(exp)
+            is Binary -> listOf(e1, e2)
+            is Nary -> throw UnsupportedOperationException("Overridden")
+            else -> throw IllegalStateException()
+        }
+
+    val size: Int
+        get() = when (this) {
+            is LitAnd -> map.size
+            is Not -> 1
+            is Binary -> 2
+            is Or -> exps.size
+            is Xor -> exps.size
+            is ComplexAnd -> exps.size
+            else -> throw IllegalStateException()
+        }
 
 
-sealed class Pair(final override val e1: Exp, final override val e2: Exp) : NonAndComplex() {
+    fun isEmpty(): Boolean = size == 0
+    fun isNotEmpty(): Boolean = !isEmpty()
 
-    init {
-        ensureNoConstants(e1, e2)
+    fun compareComplex(other: Complex): Int {
+        val i1 = opDetail.compareTo(other.opDetail)
+        if (i1 != 0) return i1
+        val i2 = size.compareTo(other.size)
+        if (i2 != 0) return i2
+        val expList1 = this.exps.sorted()
+        val expList2 = other.exps.sorted()
+        for (index in 0 until size) {
+            val e1 = expList1[index]
+            val e2 = expList2[index]
+            val i3 = e1.compareTo(e2)
+            if (i3 != 0) return i3
+        }
+        return 0
     }
 
-    override val exps: List<Exp> get() = listOf(e1, e2)
 
-    override val size: Int get() = 2
-
-    override val vars: Set<Var>
-        get() {
-            val s = mutableSetOf<Var>()
-            s.addAll(e1.vars)
-            s.addAll(e2.vars)
-            return s
-        }
 }
 
-class Not(val exp: Complex) : NonAndComplex() {
+interface Binary {
+    val e1: Exp
+    val e2: Exp
+}
+
+interface Nary
+
+class Not(val exp: Complex) : NonAnd() {
 
     init {
-        require(exp !is Constant)
         check(exp !is Not)
     }
 
-    override val size: Int get() = 1
-    override val exps: List<Exp> get() = listOf(exp)
-    override val e1: Exp get() = exp
-
-    override fun maybeSimplify(): Exp {
-        val s = exp.maybeSimplify()
+    override fun maybeSimplify(f: ExpFactory): Exp {
+        val s = exp.maybeSimplify(f)
         if (s == exp) return this
-        return s.flip()
+        return s.flip(f)
     }
 
-    override val vars: Set<Var>
-        get() = exp.vars
+    override val vars: Set<Var> get() = exp.vars
 
-    override fun simplify(lits: Assignment): Exp {
-        val ss = exp.simplify(lits)
-        return ss.flip()
+    override fun simplify(assignment: Assignment, f: ExpFactory): Exp {
+        val ss = exp.simplify(assignment, f)
+        return ss.flip(f)
     }
+
+    fun eq(other: Not) = exp == other.exp
 
 }
 
@@ -390,35 +304,9 @@ sealed class Lit : Simple(), Assignment {
 
     abstract val vr: Var
 
-    val asLitAnd: LitAnd by lazy {
-        LitAnd.create(this)
-    }
+    override val vars: Set<Var> by lazy { setOf(vr) }
 
-    override val lits: LitAnd
-        get() = asLitAnd
-
-    override val lits1: Iterable<Lit> by lazy {
-        object : Iterable<Lit> {
-            override fun iterator() = SingleLitIt(this@Lit)
-        }
-    }
-
-    override fun maybeSimplify(): Exp = this
-
-    private class SingleLitIt(private val _lit: Lit) : Iterator<Lit> {
-
-        private var hasNext: Boolean = true
-
-        override fun hasNext(): Boolean {
-            return hasNext
-        }
-
-        override fun next(): Lit {
-            val retVal = _lit
-            hasNext = false
-            return retVal
-        }
-    }
+    override fun maybeSimplify(f: ExpFactory): Exp = this
 
     override fun isEmpty(): Boolean = false
 
@@ -430,296 +318,282 @@ sealed class Lit : Simple(), Assignment {
         }
     }
 
+    override fun simplify(assignment: Assignment, f: ExpFactory): Exp {
+        val boolValue = assignment.value(vr).toBool()
+        return if (boolValue == sign) {
+            f.mkTrue()
+        } else {
+            f.mkFalse()
+        }
+    }
+
     val sign: Boolean
         get() = when (this) {
             is Var -> true
             is NegVar -> false
         }
 
-    operator fun not(): Lit {
-        return when {
-            this is Var -> this.neg
-            this is NegVar -> this.vr
-            else -> throw IllegalStateException()
-        }
+    operator fun not(): Lit = when (this) {
+        is Var -> this.neg
+        is NegVar -> this.vr
     }
 
-    override fun assign(pics: Assignment): Exp = when (pics) {
-        is Lit -> assignLit(pics)
-        is LitAnd -> assignLitAnd(pics)
-        else -> throw IllegalStateException()
-    }
-
-    open fun assignLit(pic: Lit): Exp {
-        return if (vr !== pic.vr) {
-            MutableLitAnd().apply {
-                addUnsafe(this@Lit)
-                addUnsafe(pic)
+    override fun assign(pics: Assignment, f: ExpFactory): Exp {
+        return if (pics is Lit) {
+            if (pics.vr == vr) {
+                if (pics.sign == sign) this
+                else f.mkFalse()
+            } else {
+                f.mkAndDisjoint(this as Assignment, pics as Assignment)
             }
         } else {
-            if (sign == pic.sign) {
-                check(this === pic)
-                this
+            if (pics.containsVar(vr)) {
+                f.mkAnd(this as Assignment, pics)
             } else {
-                False
+                f.mkAndDisjoint(this as Assignment, pics)
             }
         }
     }
 
-    open fun assignLitAnd(pics: LitAnd): Exp {
-        return pics.assignLit(this)
+    override val asIterable: Iterable<Lit> by lazy {
+        this.mkSingletonIterable()
     }
 
-
-}
-
-sealed class Constant : Simple() {
-
-    override val vars: Set<Var> by lazy {
-        emptySet<Var>()
+    internal fun compareLit(other: Lit): Int {
+        val i = vr.id.compareTo(other.vr.id)
+        return if (i != 0) {
+            i
+        } else {
+            sign.compareTo(other.sign)
+        }
     }
-
-    override fun maybeSimplify(): Exp {
-        return this
-    }
-
-    override fun simplify(lits: Assignment): Exp {
-        throw UnsupportedOperationException()
-    }
-
-    override val expFactory: ExpFactory
-        get() = throw UnsupportedOperationException(this.toString())
 
 }
 
 
-class Var(private val _expFactory: ExpFactory, val id: VarId) : Lit() {
-
-    override val expFactory: ExpFactory get() = _expFactory
-
-    val neg: NegVar by lazy {
-        NegVar(this)
-    }
-
-    override val vars: Set<Var> by lazy {
-        setOf(this)
-    }
+class Var(val id: VarId) : Lit() {
 
     override val vr: Var get() = this
+
+    val neg: NegVar by lazy { NegVar(this) }
 
     fun lit(sign: Boolean): Lit {
         return if (sign) this else neg
     }
 
-    override fun simplify(lits: Assignment) = when (lits.value(this)) {
-        Tri.TRUE -> True
-        Tri.FALSE -> False
-        Tri.OPEN -> throw IllegalStateException()
-    }
 
 }
 
-class NegVar(override val vr: Var) : Lit() {
 
-    override val expFactory: ExpFactory
-        get() = vr.expFactory
+class NegVar(val _vr: Var) : Lit() {
 
-    override fun simplify(lits: Assignment) = when (lits.value(this.vr)) {
-        Tri.TRUE -> False
-        Tri.FALSE -> True
-        Tri.OPEN -> throw IllegalStateException()
-    }
+    override val vr: Var get() = _vr
 
-    override val vars: Set<Var> = vr.vars
 
 }
 
-class Conflict(e1: Exp, e2: Exp) : Pair(e1, e2) {
-    override fun simplify(lits: Assignment): Exp {
-        val s1 = e1.maybeSimplify(lits)
-        val s2 = e2.maybeSimplify(lits)
-        if (s1 == True && s2 == True) return False
-        if (s1 == False || s2 == False) return True
-        if (s1 == True) return s2.flip()
-        if (s2 == True) return s1.flip()
+
+class Conflict(override val e1: Exp, override val e2: Exp) : NonAnd(), Binary {
+
+    override fun simplify(assignment: Assignment, f: ExpFactory): Exp {
+        val s1 = e1.maybeSimplify(assignment, f)
+        val s2 = e2.maybeSimplify(assignment, f)
+        if (s1 == f.mkTrue() && s2 == f.mkTrue()) return f.mkFalse()
+        if (s1 == f.mkFalse() || s2 == f.mkFalse()) return f.mkTrue()
+        if (s1 == f.mkTrue()) return s2.flip(f)
+        if (s2 == f.mkTrue()) return s1.flip(f)
 
         if (s1 == e1 && s2 == e2) return this
 
         return f.mkConflict(s1, s2)
     }
+
+    fun eq(other: Iff) = e1 == other.e1 && e2 == other.e2 || e1 == other.e2 && e2 == other.e1
 }
 
-class Iff(e1: Exp, e2: Exp) : Pair(e1, e2) {
-    override fun simplify(lits: Assignment): Exp {
-        val s1 = e1.maybeSimplify(lits)
-        val s2 = e2.maybeSimplify(lits)
-        if (s1 == True && s2 == True) return True
-        if (s1 == False && s2 == False) return True
-        if (s1 == False && s2 == True) return False
-        if (s1 == True && s2 == False) return False
-        if (s1 == True) return s2
-        if (s1 == False) return s2.flip()
-        if (s2 == True) return s1
-        if (s2 == False) return s1.flip()
-        if (s1 == e1 && s2 == e2) return this
-        return Iff(s1, s2)
+
+class Iff(override val e1: Exp, override val e2: Exp) : NonAnd(), Binary {
+
+    override fun simplify(assignment: Assignment, f: ExpFactory): Exp {
+        val s1 = e1.maybeSimplify(assignment, f)
+        val s2 = e2.maybeSimplify(assignment, f)
+        if (s1 === f.mkTrue() && s2 == f.mkTrue()) return f.mkTrue()
+        if (s1 === f.mkFalse() && s2 == f.mkFalse()) return f.mkTrue()
+        if (s1 === f.mkFalse() && s2 == f.mkTrue()) return f.mkFalse()
+        if (s1 === f.mkTrue() && s2 == f.mkFalse()) return f.mkFalse()
+        if (s1 === f.mkTrue()) return s2
+        if (s1 === f.mkFalse()) return s2.flip(f)
+        if (s2 === f.mkTrue()) return s1
+        if (s2 === f.mkFalse()) return s1.flip(f)
+        if (s1 === e1 && s2 == e2) return this
+
+        return f.mkIff(s1, s2)
     }
+
+    fun eq(other: Iff) = e1 == other.e1 && e2 == other.e2 || e1 == other.e2 && e2 == other.e1
+
 }
 
-class Requires(e1: Exp, e2: Exp) : Pair(e1, e2) {
 
-    override fun simplify(lits: Assignment): Exp {
-        val s1 = e1.maybeSimplify(lits)
-        val s2 = e2.maybeSimplify(lits)
-        if (s1 === True && s2 == False) return False
-        if (s1 === False) return True
-        if (s2 === True) return True
-        if (s1 === True) return s2
-        if (s2 === False) return s1.flip()
+class Requires(override val e1: Exp, override val e2: Exp) : NonAnd(), Binary {
+
+    override fun simplify(assignment: Assignment, f: ExpFactory): Exp {
+        val s1 = e1.maybeSimplify(assignment, f)
+        val s2 = e2.maybeSimplify(assignment, f)
+        if (s1 === f.mkTrue() && s2 == f.mkFalse()) return f.mkFalse()
+        if (s1 === f.mkFalse()) return f.mkTrue()
+        if (s2 === f.mkTrue()) return f.mkTrue()
+        if (s1 === f.mkTrue()) return s2
+        if (s2 === f.mkFalse()) return s1.flip(f)
 
         if (s1 == e1 && s2 == e2) return this
 
         return f.mkRequire(s1, s2)
     }
+
+    fun eq(other: Requires) = e1 == other.e1 && e2 == other.e2
 }
 
-class Xor(override val exps: List<Exp>) : NonAndComplex() {
 
-    init {
-        require(exps.size > 1)
-    }
+class Xor(override val exps: List<Exp>) : NonAnd(), Nary {
 
-    override val e1: Exp get() = exps[0]
+    override val vars: Set<Var>
+        get() = exps.vars()
 
-    override val size: Int get() = exps.size
+    override fun simplify(assignment: Assignment, f: ExpFactory): Exp {
+        require(this.anyOverlap(assignment))
 
+        val simple = exps.map { it.maybeSimplify(assignment, f) }
 
-    override val vars: Set<Var> get() = Exp.computeVars(exps)
-
-    override fun simplify(lits: Assignment): Exp {
-        require(this.anyOverlap(lits))
-
-        val simple = exps.map { it.maybeSimplify(lits) }
-
-        val trueCount = simple.count { it === True }
+        val trueCount = simple.count { it === f.mkTrue() }
         val opens = simple.filter { it !is Constant }
 
         return when {
             trueCount == 0 -> when {
-                opens.isEmpty() -> False
+                opens.isEmpty() -> f.mkFalse()
                 opens.size == 1 -> opens[0]
-                else -> expFactory.mkXor(opens)
+                else -> f.mkXor(opens)
             }
             trueCount == 1 -> when {
-                opens.isEmpty() -> True
-                opens.size == 1 -> opens[0].flip()
+                opens.isEmpty() -> f.mkTrue()
+                opens.size == 1 -> opens[0].flip(f)
                 else -> {
-                    val b = AndBuilder()
-                    for (open in opens) {
-                        b.add(open.flip())
-                    }
-                    expFactory.mkAnd(b)
+                    val flipped = opens.map { it.flip(f) }
+                    f.mkAnd(flipped)
                 }
             }
-            trueCount > 1 -> False
+            trueCount > 1 -> f.mkFalse()
             else -> throw IllegalStateException()
         }
     }
 
+    fun eq(other: Xor) = exps.sorted() == other.exps.sorted()
+
 }
 
-sealed class And : Complex() {
+abstract sealed class And : Complex() {
     abstract fun computeLocalDisjoint(): Boolean
+
 }
 
-sealed class NonAndComplex : Complex() {
+abstract sealed class NonAnd : Complex() {
 
-    override fun assign(pics: Assignment): Exp {
+
+    override fun assign(pics: Assignment, f: ExpFactory): Exp {
         return Propagator.propagate(f, this, pics)
     }
 
-    override fun maybeSimplify(): Exp = this
+    override fun maybeSimplify(f: ExpFactory): Exp = this
+
+    override val vars: Set<Var> by lazy { exps.vars() }
 
 }
 
 
-class Or(override val exps: List<Exp>) : NonAndComplex() {
+class Or(override val exps: List<Exp>) : NonAnd(), Nary {
 
-    override val size: Int get() = exps.size
-    override val e1: Exp get() = exps[0]
-    override val e2: Exp get() = exps[1]
-
-    override val vars: Set<Var> by lazy {
-        exps.flatMap { it.vars }.toSet()
-    }
-
-    override fun simplify(lits: Assignment): Exp {
+    override fun simplify(assignment: Assignment, f: ExpFactory): Exp {
         val ss = mutableListOf<Exp>()
         for (e in exps) {
             check(e !is Constant)
-            val s = e.maybeSimplify(lits)
-            if (s == False) continue
-            else if (s == True) return True
+            val s = e.maybeSimplify(assignment, f)
+            if (s == f.mkFalse()) continue
+            else if (s == f.mkTrue()) return f.mkTrue()
             else if (s is Or) ss.addAll(s.exps)
             else ss.add(s)
         }
         return f.mkOr(ss)
     }
 
-    override fun maybeSimplify(): Exp = when (exps.size) {
-        0 -> False
+    override fun maybeSimplify(f: ExpFactory): Exp = when (exps.size) {
+        0 -> f.mkFalse()
         1 -> exps[0]
         else -> this
     }
 
+    fun eq(other: Or) = exps.sorted() == other.exps.sorted()
 }
 
 enum class AssignAffect {
     DUP, CONFLICT, ASSIGN
 }
 
-abstract class LitAnd : And(), Assignment {
+
+class LitAnd(val map: Map<Var, Boolean>) : And(), Assignment, Nary {
+
+    constructor(lit: Lit) : this(mapOf(lit.vr to lit.sign))
+
+    constructor(lit1: Lit, lit2: Lit) : this(mapOf(lit1.vr to lit1.sign, lit2.vr to lit2.sign)) {
+        require(lit1.vr != lit2.vr)
+    }
 
     override fun computeLocalDisjoint(): Boolean {
         return true
     }
 
-    override val lits: LitAnd
-        get() = this
+    override val exps: Iterable<Exp> get() = asIterable
 
-    abstract override val vars: Set<Var>
+    override val asIterable: Iterable<Lit> by lazy {
+        object : Iterable<Lit> {
+            override fun iterator() = LitIt(map.iterator())
+        }
+    }
 
-    abstract override fun isEmpty(): Boolean
+    override val vars: Set<Var> by lazy { map.keys }
 
-    abstract fun litIt(): Iterator<Lit>
+    val tLits: List<Lit> get() = asIterable.filter { it.sign }
 
-    abstract val sorted: List<Lit>
+    fun copy(): LitAndBuilder {
+        val m = LitAndBuilder()
+        m.putAll(map)
+        return m
+    }
 
-    abstract val map: Map<Var, Boolean>
+    override fun assign(pics: Assignment, f: ExpFactory): Exp {
+        val affect = assignTest(pics)
+        return when (affect) {
+            AssignAffect.DUP -> this
+            AssignAffect.CONFLICT -> f.mkFalse()
+            AssignAffect.ASSIGN -> {
+                val mm = copy()
+                mm.assign(pics)
+                when {
+                    mm.isFailed() -> throw IllegalStateException()
+                    mm.isEmpty() -> f.mkTrue()
+                    mm.size == 1 -> mm.first()
+                    else -> f.mk(LitAnd(mm))
+                }
+            }
+        }
+    }
 
-    abstract fun isFailed(): Boolean
-
-    abstract fun computeOverlap(careVars: Set<Var>): MutableLitAnd
-    abstract fun split(careVars: Set<Var>): DisjointLits
-
-    abstract fun copy(): MutableLitAnd
-
-    abstract fun assignLit(lit: Lit): Exp
-    abstract fun assignLitAnd(lits: LitAnd): Exp
-    abstract fun assignLits(lits: Iterable<Lit>): Exp
-
-    abstract fun careLits(careVars: Set<Var>): LitAnd
-
-    abstract fun toList(): List<Lit>
-    fun toSet(): Set<Lit> = toList().toSet()
-
-    fun assignTest(a: Assignment): AssignAffect = when (a) {
+    private fun assignTest(a: Assignment): AssignAffect = when (a) {
         is Lit -> assignLitTest(a)
         is LitAnd -> assignLitAndTest(a)
         else -> throw IllegalStateException()
     }
 
-    fun assignLitTest(lit: Lit): AssignAffect {
+    private fun assignLitTest(lit: Lit): AssignAffect {
         val b = map[lit.vr]
         return when (b) {
             null -> AssignAffect.ASSIGN
@@ -728,7 +602,7 @@ abstract class LitAnd : And(), Assignment {
         }
     }
 
-    fun assignLitsTest(lits: Iterable<Lit>): AssignAffect {
+    private fun assignLitsTest(lits: Iterable<Lit>): AssignAffect {
         var anyChange = false
         for (lit in lits) {
             val affect = assignLitTest(lit)
@@ -742,275 +616,50 @@ abstract class LitAnd : And(), Assignment {
         else AssignAffect.DUP
     }
 
-    fun assignLitAndTest(litAnd: LitAnd): AssignAffect {
-        return assignLitsTest(litAnd.lits1)
+    private fun assignLitAndTest(litAnd: LitAnd): AssignAffect {
+        return assignLitsTest(litAnd.asIterable)
     }
 
-    override fun assign(pics: Assignment): Exp {
-        val affect = assignTest(pics)
-        return when (affect) {
-            AssignAffect.DUP -> this
-            AssignAffect.CONFLICT -> False
-            AssignAffect.ASSIGN -> copy().apply { assignInPlace(pics) }
-        }
-    }
-
-    companion object {
-        private val _empty = MutableLitAnd()
-
-        fun empty() = _empty
-
-        fun create(lit: Lit): LitAnd {
-            return MutableLitAnd(lit)
-        }
-
-
-    }
-
-    override fun maybeSimplify(): Exp = when {
-        isFailed() -> False
-        size == 0 -> True
-        size == 1 -> e1
+    override fun maybeSimplify(f: ExpFactory): Exp = when (size) {
+        0 -> f.mkTrue()
+        1 -> first()
         else -> this
     }
 
-    fun containsLit(lit: Lit): Boolean {
-        val b = map[lit.vr]
-        return b != null && b == lit.sign
-    }
+    private fun first(): Lit = map.first1()
 
-    fun containsLits(vararg lits: Lit): Boolean {
-        for (lit in lits) {
-            if (!containsLit(lit)) return false
+    fun eq(other: LitAnd) = map == other.map
+
+    override fun simplify(assignment: Assignment, f: ExpFactory): Exp {
+        val mm = LitAndBuilder()
+        for (lit in asIterable) {
+            val s = lit.maybeSimplify(assignment, f)
+            if (s is True) continue
+            if (s is False) return f.mkFalse()
+            mm.addLitUnsafe(lit)
         }
-        return true
-    }
-}
-
-fun Map.Entry<Var, Boolean>.toLit() = this.key.lit(value)
-
-class MutableLitAnd(private val _map: MutableMap<Var, Boolean> = mutableMapOf()) : LitAnd() {
-
-    override val sorted: List<Lit>
-        get() = lits1.sorted()
-
-    private var conflictLit: Lit? = null
-
-    constructor(lit: Lit) : this() {
-        _map[lit.vr] = lit.sign
-    }
-
-    constructor(lits: Iterable<Lit>) : this() {
-        for (lit in lits) {
-            assignLitInPlace(lit)
-        }
-    }
-
-    override val map: Map<Var, Boolean> get() = _map
-
-    override val opDetail: String
-        get() = "LitAnd"
-
-    override fun litIt(): Iterator<Lit> = LitIt(_map.iterator())
-
-    override fun isEmpty(): Boolean {
-        return _map.isEmpty()
-    }
-
-    override val vars: Set<Var>
-        get() = _map.keys
-
-
-    private class LitIt(private val mapIt: Iterator<Map.Entry<Var, Boolean>>) : Iterator<Lit> {
-
-        override fun hasNext() = mapIt.hasNext()
-
-        override fun next() = mapIt.next().toLit()
-    }
-
-    override val lits1: Iterable<Lit>
-        get() = object : Iterable<Lit> {
-            override fun iterator() = LitIt(_map.iterator())
-        }
-
-    override val exps: Iterable<Exp> get() = lits1
-
-    override fun value(v: Var): Tri = Tri.fromBoolean(_map[v])
-
-    override fun toList() = lits1.toList()
-
-    override fun isFailed(): Boolean = conflictLit != null
-
-
-    override fun assignLit(lit: Lit): Exp {
-        val affect = assignLitTest(lit)
-        return when (affect) {
-            AssignAffect.DUP -> this
-            AssignAffect.CONFLICT -> False
-            AssignAffect.ASSIGN -> copy().apply { assignLitInPlace(lit) }
-        }
-    }
-
-    override fun assignLitAnd(lits: LitAnd): Exp {
-        if (lits.isFailed()) return False
-        val affect = assignLitAndTest(lits)
-        return when (affect) {
-            AssignAffect.DUP -> this
-            AssignAffect.CONFLICT -> False
-            AssignAffect.ASSIGN -> copy().apply { assignLitAndInPlace(lits) }
-        }
-    }
-
-    override fun assignLits(lits: Iterable<Lit>): Exp {
-        val a = MutableLitAnd().apply { assignLitsInPlace(lits) }
-        a.assignLitsInPlace(lits)
-        if (a.isFailed()) return False
-        return assignLitAnd(a)
-    }
-
-    fun assignInPlace(a: Assignment): AssignAffect = when (a) {
-        is Lit -> assignLitInPlace(a)
-        is LitAnd -> assignLitAndInPlace(a)
-        else -> throw IllegalStateException()
-    }
-
-    fun assignLitAndInPlace(lits: LitAnd): AssignAffect {
-        return assignLitsInPlace(lits.lits1)
-    }
-
-    fun assignLitsInPlace(lits: Iterable<Lit>): AssignAffect {
-        if (isFailed()) throw IllegalStateException()
-        var anyChange = false
-        for (lit in lits) {
-            val ch = assignLitInPlace(lit)
-            if (ch == AssignAffect.CONFLICT) return AssignAffect.CONFLICT
-            else if (ch == AssignAffect.ASSIGN) anyChange = true
-        }
-        return if (anyChange) {
-            AssignAffect.ASSIGN
-        } else {
-            AssignAffect.DUP
-        }
-    }
-
-    fun assignLitInPlace(lit: Lit): AssignAffect {
-        if (isFailed()) throw IllegalStateException()
-        val v = lit.vr
-        val newValue = lit.sign
-        val currentValue: Boolean? = _map[v]
-        return when (currentValue) {
-            null -> {
-                _map[v] = newValue
-                AssignAffect.ASSIGN
-            }
-            newValue -> AssignAffect.DUP
-            else -> {
-                conflictLit = lit
-                AssignAffect.CONFLICT
-            }
-        }
-    }
-
-
-    override val size: Int
-        get() = _map.size
-
-    val firstLit: Lit get() = _map.entries.first().lit()
-
-    override val e1: Exp get() = firstLit
-
-    override fun copy(): MutableLitAnd {
-        require(!isFailed())
-        val c = MutableLitAnd()
-        c._map.putAll(this._map)
-        return c
-    }
-
-    override fun simplify(lits: Assignment) = expFactory.mkAnd(exps, lits)
-
-    override fun computeOverlap(careVars: Set<Var>): MutableLitAnd {
-        val filtered = MutableLitAnd()
-        for (entry in _map.entries) {
-            if (careVars.contains(entry.key)) {
-                filtered._map[entry.key] = entry.value
-            }
-        }
-        return filtered
-    }
-
-    override fun split(careVars: Set<Var>): DisjointLits {
-        val overlap = MutableLitAnd()
-        val nonOverlap = MutableLitAnd()
-        for (entry in _map.entries) {
-            if (careVars.contains(entry.key)) {
-                overlap._map[entry.key] = entry.value
-            } else {
-                nonOverlap._map[entry.key] = entry.value
-            }
-        }
-
-        return DisjointLits(overlap, nonOverlap)
-    }
-
-
-    override fun careLits(careVars: Set<Var>): LitAnd {
-        if (isFailed()) throw IllegalStateException()
-        val mm = MutableLitAnd()
-        for (entry in _map.entries) {
-            if (careVars.contains(entry.key)) {
-                mm._map[entry.key] = entry.value
-            }
-        }
-        return mm
-    }
-
-    fun addUnsafe(lit: Lit) {
-        _map.put(lit.vr, lit.sign)
-    }
-
-    fun addAllUnsafe(lits: LitAnd) {
-        for (lit in lits.lits1) {
-            addUnsafe(lit)
+        return when {
+            mm.isEmpty() -> f.mkTrue()
+            mm.size == 1 -> mm.first()
+            else -> LitAnd(mm)
         }
     }
 
     companion object {
-        fun mkAndDisjoint(lits1: Assignment, lits2: Assignment): MutableLitAnd {
-            require(!lits1.anyOverlap(lits2))
-            val a = MutableLitAnd()
-            when (lits1) {
-                is LitAnd -> a._map.putAll(lits1.map)
-                is Lit -> a._map.put(lits1.vr, lits1.sign)
-                else -> throw IllegalStateException()
-            }
-            when (lits2) {
-                is LitAnd -> a._map.putAll(lits2.map)
-                is Lit -> a._map.put(lits2.vr, lits2.sign)
-                else -> throw IllegalStateException()
-            }
-            return a
-        }
+        val EMPTY: LitAnd = LitAnd(emptyMap())
+        fun create(lit: Lit): LitAnd = LitAnd(lit)
 
     }
 
+    fun minus(vr: Var): LitAnd = LitAnd(map.minus(vr))
+
+    override fun value(v: Var): Tri = Tri.fromBoolean(map[v])
+
 }
 
-data class DisjointLits(val overlap: MutableLitAnd, val nonOverlap: MutableLitAnd) {
+class ComplexAnd(override val exps: List<NonAnd>) : And(), Nary {
 
-    init {
-        check(overlap.isDisjoint(nonOverlap as Exp))
-    }
-}
-
-
-fun Map.Entry<Var, Boolean>.lit(): Lit = key.lit(value)
-
-/**
- * contains no constants, lits or ands
- */
-abstract class ComplexAnd : And() {
-
-    abstract override val exps: List<Complex>
+    override val vars: Set<Var> by lazy { exps.vars() }
 
     override fun computeLocalDisjoint(): Boolean {
         val set = mutableSetOf<Var>()
@@ -1022,121 +671,100 @@ abstract class ComplexAnd : And() {
         return true
     }
 
-    abstract fun isEmpty(): Boolean
-    abstract fun isNotEmpty(): Boolean
-    abstract fun first(): Exp
+    fun first(): Exp = exps[0]
 
-    override fun maybeSimplify(): Exp = when (size) {
-        0 -> True
-        1 -> e1
+    override fun maybeSimplify(f: ExpFactory): Exp = when (size) {
+        0 -> f.mkTrue()
+        1 -> first()
         else -> this
     }
 
-    override val vars: Set<Var> by lazy {
-        exps.flatMap { it.vars }.toSet()
+    override fun simplify(assignment: Assignment, f: ExpFactory): Exp {
+        return f.mkAnd(exps, assignment)
     }
 
-    override fun assign(pics: Assignment): Exp {
-        if (pics is LitAnd && pics.isFailed()) return False
+    override fun assign(pics: Assignment, f: ExpFactory): Exp {
         return Propagator.propagate(f, this, pics)
     }
 
-
-}
-
-class MutableComplexAnd(override val exps: MutableList<Complex> = mutableListOf()) : ComplexAnd() {
-
-    override val size: Int get() = exps.size
-
-    override val e1: Exp get() = exps[0]
-    override val e2: Exp get() = exps[1]
-
-    init {
-        ensureNoConstants(exps)
-        ensureNoLits(exps)
-        ensureNoAnds(exps)
-    }
-
-
-    override val opDetail: String
-        get() = "ComplexAnd"
-
-    override fun isEmpty(): Boolean = exps.isEmpty()
-    override fun isNotEmpty(): Boolean = exps.isNotEmpty()
-    override fun first(): Exp = exps.first()
-
-    fun add(e: Complex) {
-        check(e !is And)
-        exps.add(e)
-    }
-
-    fun addAll(exps: Iterable<Complex>) {
-        for (complex in exps) {
-            add(complex)
-        }
-    }
-
-
-    override fun simplify(lits: Assignment): Exp {
-        return expFactory.mkAnd(exps, lits)
-    }
+    fun eq(other: ComplexAnd) = exps.sorted() == other.exps.sorted()
 
 
 }
 
-class MixedAnd(val constraint: Complex, override val lits: LitAnd, val disjoint: Boolean) : And() {
 
-    override val size: Int = 2
-
-    override fun computeLocalDisjoint(): Boolean {
-        val vars1 = constraint.vars
-        val vars2 = lits.vars
-        if (!vars1.isDisjoint(vars2)) return false
-        return true
-    }
+class MixedAnd(val constraint: Complex, val lits: Assignment, val disjoint: Boolean) : And(), Binary {
 
     init {
-        require(!lits.isFailed())
-        require(lits.isNotEmpty())
-        require(constraint is ComplexAnd || constraint is NonAndComplex, { constraint.toString() })
+        require(!lits.isEmpty())
+        require(constraint !is LitAnd)
         if (disjoint) {
-            require(lits.isDisjoint(constraint))
+            require(constraint.isDisjoint(lits))
         }
     }
 
-    override fun assign(pics: Assignment): Exp {
-        val ret = Propagator.propagate(f, this, pics)
-        val sRet = ret.maybeSimplify()
-        return sRet
+    override val e1: Exp get() = constraint
+
+    override val e2: Exp get() = lits.asExp
+
+    override fun computeLocalDisjoint(): Boolean = constraint.isDisjoint(lits)
+
+    override fun assign(pics: Assignment, f: ExpFactory): Exp {
+        return Propagator.propagate(f, this, pics)
     }
 
-    override fun maybeSimplify(): Exp = if (disjoint) {
+    override fun maybeSimplify(f: ExpFactory): Exp = if (disjoint) {
         this
     } else {
         Propagator.propagate(f, constraint, lits)
     }
 
-    fun careLits(): LitAnd {
-        return if (disjoint) LitAnd.empty()
-        else lits.careLits(constraint.vars)
+    fun overlapLits(): Assignment {
+        return if (disjoint) {
+            LitAnd.EMPTY
+        } else {
+            val mm = LitAndBuilder()
+            for (lit in lits.asIterable) {
+                if (constraint.containsVar(lit.vr)) {
+                    mm.addUnsafe(lit)
+                }
+            }
+            mm.mkAssignment()
+        }
     }
 
     override val exps: Iterable<Exp>
-        get() = listOf(constraint, lits)
+        get() = listOf(constraint, lits.asExp)
 
-
-    override fun simplify(lits: Assignment): Exp {
+    override fun simplify(assignment: Assignment, f: ExpFactory): Exp {
         throw UnsupportedOperationException()
     }
 
-    override val vars: Set<Var> get() = constraint.vars + lits.vars
-
-    override val expFactory: ExpFactory
-        get() = try {
-            constraint.expFactory
-        } catch (e: Exception) {
-            lits.expFactory
+    override val vars: Set<Var>
+        get() = when (lits) {
+            is LitAnd -> constraint.vars + lits.vars
+            is Lit -> constraint.vars + lits.vr
+            else -> throw IllegalStateException()
         }
 
+    fun eq(other: MixedAnd) = constraint == other.constraint && lits == other.lits
 
 }
+
+
+//extension functions
+
+fun Iterable<Exp>.vars(): Set<Var> = flatMap { it.vars }.toSet()
+
+fun Set<Var>.anyOverlap(vars: Set<Var>): Boolean = this.any { vars.contains(it) }
+fun Set<Var>.isDisjoint(vars: Set<Var>): Boolean = !anyOverlap(vars)
+
+fun Set<Var>.anyOverlap(exp: Exp): Boolean = anyOverlap(exp.vars)
+fun Set<Var>.isDisjoint(exp: Exp): Boolean = isDisjoint(exp.vars)
+
+fun Map.Entry<Var, Boolean>.toLit1(): Lit = this.key.lit(value)
+fun Map<Var, Boolean>.first1(): Lit = this.iterator().next().toLit1()
+
+fun MutableMap.MutableEntry<Var, Boolean>.toLit2(): Lit = key.lit(value)
+fun MutableMap<Var, Boolean>.first2(): Lit = this.iterator().next().toLit2()
+

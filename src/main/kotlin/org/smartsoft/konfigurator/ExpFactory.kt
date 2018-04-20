@@ -1,13 +1,33 @@
 package org.smartsoft.konfigurator
 
-open class ExpFactory {
 
-    private val map = mutableMapOf<VarId, Var>()
+open class ExpFactory(var _vars: HashSet<Var>? = null) {
 
-    fun mkVar(id: VarId): Var {
+    private val map: MutableMap<VarId, Var> = mutableMapOf()
+    private val constraints = mutableListOf<Exp>()
+
+    val vars: HashSet<Var>
+        get() {
+            if (_vars == null) {
+                _vars = HashSet<Var>().apply {
+                    addAll(map.values)
+                }
+            }
+            return _vars!!
+        }
+
+
+    private val constantTrue: True by lazy { True() }
+    private val constantFalse: False by lazy { False() }
+
+    fun mkTrue(): True = constantTrue
+    fun mkFalse(): False = constantFalse
+
+    private fun mkVar(id: VarId): Var {
+        if (_vars != null) throw IllegalStateException()
         var v = map[id]
         if (v == null) {
-            v = Var(this, id)
+            v = Var(id)
             map[id] = v
         }
         return v
@@ -15,14 +35,13 @@ open class ExpFactory {
 
     operator fun String.unaryPlus(): Var = mkVar(this)
 
-
     fun mkOr(exps: List<Exp>): Exp {
-        return Or(exps).maybeSimplify()
+        return Or(exps).maybeSimplify(this)
     }
 
     fun mkXor(opens: List<Exp>): Exp {
         require(opens.size > 1)
-        return Xor(opens).maybeSimplify()
+        return Xor(opens).maybeSimplify(this)
     }
 
     fun mkXor(e1: Exp, e2: Exp): Exp {
@@ -47,192 +66,102 @@ open class ExpFactory {
         return Not(complex)
     }
 
-    fun mkAnd(a: Assignment, lit: Lit): Exp {
-        return when (a) {
-            is Lit -> mkAnd(a, lit)
-            is LitAnd -> mkAnd(a, lit)
-            else -> throw IllegalStateException()
-        }
+    fun mkAnd(e1: Assignment, e2: Assignment): Exp {
+        if (e1.isEmpty()) e2.asExp
+        if (e2.isEmpty()) e1.asExp
+        val b = LitAndBuilder()
+        b.assign(e1)
+        b.assign(e2)
+        return mk(b.mk())
     }
 
     fun mkAnd(e1: Exp, e2: Exp): Exp {
-        return if (e1 === False || e2 === False) False
-        else if (e2 === True) e1
-        else if (e1 === True) e2
-        else if (e1 is Lit) {
-            e2.assign(e1)
-        } else if (e1 is LitAnd) {
-            e2.assign(e1)
-        } else if (e2 is Lit) {
-            e1.assign(e2)
-        } else if (e2 is LitAnd) {
-            e1.assign(e2)
+        return if (e1 is Assignment && e2 is Assignment) {
+            mkAnd(e1 as Assignment, e2 as Assignment)
         } else {
-            val b = AndBuilder()
+            val b = AndBuilder(this)
             b.add(e1)
             b.add(e2)
-            return mkAnd(b)
+            b.mk()
         }
-    }
-
-    fun mkAnd(lit1: Lit, lit2: Lit): Exp {
-        return if (lit1.vr !== lit2.vr) {
-            MutableLitAnd().apply {
-                addUnsafe(lit1)
-                addUnsafe(lit2)
-            }
-        } else {
-            if (lit1.sign == lit2.sign) {
-                check(lit1 === lit2)
-                lit1
-            } else {
-                False
-            }
-        }
-    }
-
-    fun mkAnd(lits: LitAnd, lit: Lit): Exp {
-        return lits.assignLit(lit).maybeSimplify()
-    }
-
-    fun mkAnd(lits: LitAnd, a: Assignment): Exp = when (a) {
-        is Lit -> mkAnd(lits, a)
-        is LitAnd -> mkAnd(lits, a)
-        else -> throw IllegalStateException()
-    }
-
-    fun mkAnd(lits1: LitAnd, lits2: LitAnd): Exp {
-        return lits1.assignLitAnd(lits2).maybeSimplify()
     }
 
     fun mkAnd(exps: Iterable<Exp>, assignments: Assignment? = null): Exp {
-        val b = AndBuilder()
+        val b = AndBuilder(this)
         b.addAll(exps, assignments)
-        return mkAnd(b)
+        return b.mk()
     }
 
-    fun mkAnd(b: AndBuilder): Exp {
+    fun mkAnd(exps: Iterable<Exp>): Exp {
+        val b = AndBuilder(this)
+        b.addAll(exps)
+        return b.mk()
+    }
 
+    fun mkAndDisjoint(e1: Exp, e2: Exp): Exp {
+        return when (e2) {
+            is False -> mkFalse()
+            is True -> e1
+            is Lit -> mkAndDisjoint(e1, e2 as Assignment)
+            is LitAnd -> mkAndDisjoint(e1, e2 as Assignment)
+            is ComplexAnd -> throw UnsupportedOperationException()
+            is NonAnd -> throw UnsupportedOperationException()
+            is MixedAnd -> throw UnsupportedOperationException()
+        }
+    }
+
+    fun mkAndDisjoint(e1: Exp, a: Assignment): Exp {
+        return when (e1) {
+            is False -> mkFalse()
+            is True -> a.asExp
+            is Lit -> mkAndDisjoint(e1 as Assignment, a)
+            is LitAnd -> mkAndDisjoint(e1 as Assignment, a)
+            is ComplexAnd -> mkAndDisjoint(e1, a)
+            is NonAnd -> mkAndDisjoint(e1, a)
+            is MixedAnd -> mkAndDisjoint(e1, a)
+        }
+    }
+
+    fun mkAndDisjoint(e1: Assignment, e2: Assignment): Exp {
+        require(e1.asExp.isDisjoint(e2))
+        if (e1.isEmpty()) e2.asExp
+        if (e2.isEmpty()) e1.asExp
+        val mm = LitAndBuilder()
+        mm.addUnsafe(e1)
+        mm.addUnsafe(e2)
+        return mm.mk(this)
+    }
+
+    private fun mkAndDisjoint(constraint: ComplexAnd, lits: Assignment): Exp {
+        require(constraint.isDisjoint(lits))
+        if (lits.isEmpty()) return constraint.maybeSimplify(this)
+        return if (constraint.size == 1) {
+            mkAndDisjoint(constraint.first(), lits)
+        } else {
+            mk(MixedAnd(constraint, lits, true))
+        }
+    }
+
+    private fun mkAndDisjoint(constraint: NonAnd, lits: Assignment): Exp {
+        require(constraint.isDisjoint(lits))
+        if (lits.isEmpty()) return constraint
+        return mk(MixedAnd(constraint, lits, true))
+    }
+
+    private fun mkAndDisjoint(constraint: MixedAnd, lits: Assignment): Exp {
+        require(constraint.isDisjoint(lits))
         return when {
-            b.isFailed -> {
-                False
-            }
-            b.isEmpty() -> {
-                True
-            }
-            b.isPureLits -> {
-                b.lits.maybeSimplify()
-            }
-            b.isPureComplex -> {
-                b.complex.maybeSimplify()
-            }
-            b.isMixed -> {
-                check(b.lits.isNotEmpty())
-                return mkMixedAnd(b.complex, b.lits).maybeSimplify()
+            lits.isEmpty() -> constraint
+            constraint.disjoint -> {
+                val newLits = mkAndDisjoint(lits, constraint.lits)
+                mkAndDisjoint(constraint.constraint, newLits)
             }
             else -> {
-                throw IllegalStateException()
+                val newLits = mkAndDisjoint(lits, constraint.lits)
+                mkAnd(constraint.constraint, newLits)
             }
         }
     }
-
-    fun mkMixedAndDisjoint(constraint: ComplexAnd, lits: LitAnd): Exp {
-        if (lits.isFailed()) return False
-        if (lits.isEmpty()) return constraint
-        return MixedAnd(constraint, lits, true)
-    }
-
-    fun mkMixedAndDisjoint(constraint: NonAndComplex, lits: LitAnd): Exp {
-        require(lits.isDisjoint(constraint))
-        if (lits.isFailed()) return False
-        if (lits.isEmpty()) return constraint
-        return MixedAnd(constraint, lits, true)
-    }
-
-    fun mkAndDisjoint(constraint: LitAnd, lits: LitAnd): Exp {
-        if (constraint.isFailed() || lits.isFailed()) return False
-        if (constraint.isEmpty() || lits.isEmpty()) return True
-        return MutableLitAnd().apply {
-            addAllUnsafe(constraint)
-            addAllUnsafe(lits)
-        }.maybeSimplify()
-    }
-
-    fun mkAndDisjoint(constraint: LitAnd, lit: Lit): Exp {
-        if (constraint.isFailed()) return False
-        if (constraint.isEmpty()) return lit
-        return MutableLitAnd().apply {
-            addAllUnsafe(constraint)
-            addUnsafe(lit)
-        }.maybeSimplify()
-    }
-
-    fun mkAndDisjoint(lit1: Lit, lit2: Lit): Exp {
-        return MutableLitAnd().apply {
-            addUnsafe(lit1)
-            addUnsafe(lit2)
-        }.maybeSimplify()
-    }
-
-    fun mkAndDisjoint(constraint: Exp, lits: LitAnd): Exp {
-        require(lits.isDisjoint(constraint))
-        return when (constraint) {
-            False -> {
-                False
-            }
-            True -> {
-                lits
-            }
-            is Lit -> {
-                mkAndDisjoint(lits, constraint)
-            }
-            is LitAnd -> {
-                mkAndDisjoint(constraint, lits)
-            }
-            is MixedAnd -> {
-                if (constraint.disjoint) {
-                    val litsNew = MutableLitAnd().apply {
-                        addAllUnsafe(constraint.lits)
-                        addAllUnsafe(lits)
-                    }
-                    mkAndDisjoint(constraint.constraint, litsNew)
-                } else {
-                    mkAndDisjoint(constraint.maybeSimplify(), lits)
-                }
-            }
-            is ComplexAnd -> {
-                mkMixedAndDisjoint(constraint, lits)
-            }
-            is NonAndComplex -> {
-                mkMixedAndDisjoint(constraint, lits)
-            }
-
-
-        }
-    }
-
-    fun mkAndDisjoint(lits1: Assignment, lits2: Assignment): MutableLitAnd {
-        return MutableLitAnd.mkAndDisjoint(lits1, lits2)
-    }
-
-    fun mkMixedAnd(constraint: Complex, lits: LitAnd, disjoint: Boolean? = null): Exp {
-        return when {
-            lits.isFailed() -> False
-            lits.isEmpty() -> constraint.maybeSimplify()
-            else -> {
-                val isDisjoint = disjoint ?: lits.isDisjoint(constraint)
-                if (isDisjoint) {
-                    mkAndDisjoint(constraint.maybeSimplify(), lits)
-                } else {
-                    Propagator.propagate(this, constraint, lits)
-                }
-            }
-        }
-
-    }
-
-
-    private val constraints = mutableListOf<Exp>()
 
     fun add(e: Exp) {
         constraints.add(e)
@@ -263,8 +192,13 @@ open class ExpFactory {
     }
 
     fun mkCsp(): Csp {
-        val exp = mkAnd(constraints)
-        return Csp(map.values.toSet(), exp)
+        val exp: Exp = mkAnd(constraints)
+        val f: ExpFactory = this
+        return Csp(f, exp)
+    }
+
+    fun <T : Exp> mk(exp: T): T {
+        return exp
     }
 
 

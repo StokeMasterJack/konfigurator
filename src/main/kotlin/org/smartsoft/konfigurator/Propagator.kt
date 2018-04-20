@@ -5,51 +5,45 @@ class Propagator {
 
     companion object {
 
+        /**
+         * conjoin and simplify
+         */
         fun propagate(f: ExpFactory, constraint: Complex, pics: Assignment?): Exp {
 
-            require(constraint !is LitAnd)
+            require(constraint is ComplexAnd || constraint is MixedAnd || constraint is NonAnd)
 
-            if (pics != null) {
-                require(pics.isNotEmpty())
-                if (pics is LitAnd && pics.isFailed()) return False
-            }
-
-            val assignments: MutableLitAnd = MutableLitAnd().apply {
-                if (pics != null) {
-                    this.assignInPlace(pics)
-                }
-            }
+            val assignments = LitAndBuilder(pics)
 
             val queue: MutableList<Assignment> = mutableListOf<Assignment>().apply {
-                if (pics != null) this.add(pics)
+                if (pics != null && !pics.isEmpty()) this.add(pics)
             }
 
             var current: Exp = constraint
 
             while (true) {
-                if (assignments.isFailed()) return False
+                if (assignments.isFailed()) return f.mkFalse()
 
                 val cur: Exp = current
 
                 val after: Exp = when (cur) {
                     is False -> {
-                        False
+                        f.mkFalse()
                     }
                     is True -> {
-                        True
+                        f.mkTrue()
                     }
                     is Lit -> {
-                        assignments.assignInPlace(cur)
-                        True
+                        assignments.assign(cur)
+                        f.mkTrue()
                     }
                     is LitAnd -> {
-                        assignments.assignInPlace(cur)
-                        True
+                        assignments.assign(cur)
+                        f.mkTrue()
                     }
                     is MixedAnd -> {
-                        assignments.assignInPlace(cur.lits)
+                        assignments.assign(cur.lits)
                         if (!cur.disjoint) {
-                            queue.add(cur.careLits())
+                            queue.add(cur.overlapLits())
                         }
                         cur.constraint
                     }
@@ -57,21 +51,21 @@ class Propagator {
                         check(cur.isNotEmpty())
                         cur
                     }
-                    is NonAndComplex -> {
+                    is NonAnd -> {
                         cur
                     }
                 }
 
-                if (after === False || assignments.isFailed()) return False
+                if (after is False || assignments.isFailed()) return f.mkFalse()
 
-                if (after === True || queue.isEmpty()) {
-                    return f.mkAndDisjoint(after, assignments)
+                if (after is True || queue.isEmpty()) {
+                    return f.mkAndDisjoint(after, assignments.mk())
                 }
 
-                check(after is ComplexAnd || after is NonAndComplex)
+                check(after is ComplexAnd || after is NonAnd)
 
                 val nextLits = queue.removeAt(0)
-                current = after.maybeSimplify(nextLits)
+                current = after.maybeSimplify(nextLits, f)
 
 
             }//end while

@@ -1,8 +1,9 @@
 package org.smartsoft.konfigurator
 
-import org.smartsoft.konfigurator.data.SimpleExample
 import org.smartsoft.konfigurator.data.CarExample
+import org.smartsoft.konfigurator.data.SimpleExample
 import kotlin.test.Test
+import kotlin.test.assertEquals
 
 
 class AllSatTest {
@@ -11,10 +12,11 @@ class AllSatTest {
     fun testTrim() {
         val vars = CarExample()
         val csp = vars.buildCsp()
+        assertEquals(11,csp.satCount())
         println("satCount: ${csp.satCount()}")
         csp.allSat { lits, dcs ->
-            println(lits.lits1.filter { it.sign })
-            println("${lits.toList()}   dontCares:${dcs}")
+            println(lits.tLits)
+            println("${lits.tLits}   dontCares:$dcs")
         }
         println()
     }
@@ -25,7 +27,7 @@ class AllSatTest {
         val csp = vars.buildCsp()
         println("satCount: ${csp.satCount()}")
         csp.allSat { lits, dcs ->
-            println("${lits.toList()}   dontCares:${dcs}")
+            println("${lits.tLits}   dontCares:$dcs")
         }
         println()
     }

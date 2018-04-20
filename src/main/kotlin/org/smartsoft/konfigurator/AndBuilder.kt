@@ -1,10 +1,10 @@
 package org.smartsoft.konfigurator
 
 
-class AndBuilder {
+class AndBuilder(val expFactory: ExpFactory) {
 
-    val lits: MutableLitAnd = MutableLitAnd()
-    val complex: MutableComplexAnd = MutableComplexAnd()
+    val lits: LitAndBuilder = LitAndBuilder()
+    val complex: ComplexAndBuilder = ComplexAndBuilder()
 
     var isShortCircuit: Boolean = false
 
@@ -24,32 +24,32 @@ class AndBuilder {
         if (isShortCircuit) throw IllegalStateException()
         when {
             isShortCircuit -> throw IllegalStateException()
-            e === False -> {
+            e is False -> {
                 isShortCircuit = true
                 return
             }
-            e === True -> {
+            e is True -> {
                 return //skip
             }
         }
 
         val s = if (assignments != null) {
-            val ss = e.maybeSimplify(assignments)
+            val ss = e.maybeSimplify(assignments, expFactory)
             ss
         } else {
             e
         }
 
         when (s) {
-            True -> {
+            is True -> {
                 //do nothing
             }
-            False -> {
+            is False -> {
                 isShortCircuit = true
             }
             is Lit -> {
                 check(s !is Constant)
-                lits.assignLitInPlace(s)
+                lits.assign(s)
             }
             is And -> {
                 for (ss in s.exps) {
@@ -57,7 +57,7 @@ class AndBuilder {
                     add(ss)
                 }
             }
-            is Complex -> {
+            is NonAnd -> {
                 check(s !is And)
                 check(s !is Constant)
                 complex.add(s)
@@ -79,12 +79,33 @@ class AndBuilder {
     val isPureComplex: Boolean get() = lits.isEmpty() && complex.isNotEmpty()
     val isMixed: Boolean get() = lits.isNotEmpty() && complex.isNotEmpty()
 
-    fun isDisjoint(): Boolean {
-        if (!isMixed) return false
-        return lits.isDisjoint(complex)
-    }
-
     override fun toString(): String {
         return "AndBuilder[$lits, $complex]"
+    }
+
+    fun mk(): Exp {
+        return when {
+            isFailed -> {
+                expFactory.mkFalse()
+            }
+            isEmpty() -> {
+                expFactory.mkTrue()
+            }
+            isPureLits -> {
+                lits.mk(expFactory)
+            }
+            isPureComplex -> {
+                complex.mk(expFactory)
+            }
+            isMixed -> {
+                val e1 = complex.mk(expFactory) as Complex
+                val e2 = lits.mk(expFactory) as Assignment
+                val disjoint = e1.isDisjoint(e2)
+                expFactory.mk(MixedAnd(e1, e2, disjoint))
+            }
+            else -> {
+                throw IllegalStateException()
+            }
+        }
     }
 }
