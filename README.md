@@ -1,19 +1,20 @@
 # Konfigurator - a product configurator engine
 
-**_Note: this is very experimental at this stage._**
+**_Note: this is in the experimental stage._**
 
 ### Overview
 This tool allows you to:
  
 - Define a set of configuration rules comprised of:
-  1. A VarSpace: a set of boolean variables (representing product features). 
-     This is called the _var space_.
-  2. A RuleSet: a set of constraints 
-     (in the form of a boolean expression) on a those vars
-- Specify user pics (the current configuration)
-- Test if the current configuration is valid
-- Compute a new, simplified constraint based on current configuration.
-- Compute inferred pics based on user pics  
+  1. A VarSpace: a set of boolean variables representing the product features.      
+  2. A RuleSet: a set of constraints (in the form of boolean expressions) on a those variables.
+- Set user pics, then:
+    - Test if the current configuration is valid
+    - Compute a new, simplified constraint based on current configuration.
+    - _**Compute inferred pics based on user pics. This is the primary purpose of this library**_:
+      - Vars that are inferred _True_ represent features that **must** be picked based on current user pics
+      - Vars that are inferred _False_ represent features that **cannot** be picked based on current user pics
+         
 
 ### Defining rules using Kotlin DSL
 A rule set may be defined using the Kotlin DSL or 
@@ -49,7 +50,8 @@ class SimpleSpace : VarSpace() {
 }
 ```
 
-### Instantiate our VarSpace and RuleSet 
+### Next, instantiate our VarSpace and RuleSet 
+
 ```kotlin
 val vars: SimpleSpace = SimpleSpace()
 val rs1: RuleSet = vars.mkRuleSet1().apply { print() }
