@@ -12,9 +12,9 @@ and the framework determines:
  
 This tool allows you to:
  
-- Define a set of features. These are represented as boolean variables (VarSpace).
-- Define a set of constraints (in the form of boolean expressions) on a those variables (). 
-  1. A VarSpace: a set of boolean variables representing the product features.      
+- Define a set of features. These are represented as boolean variables (VarSet).
+- Define a set of constraints (in the form of boolean expressions) on a those variables. 
+  1. A VarSet: a set of boolean variables representing the product features.      
   2. A Pics: a set of constraints (in the form of boolean expressions) on a those variables.
 - Set user pics, then:
     - Test if the current configuration is valid
@@ -30,7 +30,7 @@ by using the Kotlin API.
 Here is a simple constraint set using the Kotlin DSL:
 
 ```kotlin
-class SimpleSpace : VarSpace() {
+class SimpleSpace : VarSet() {
 
     //vars: product features
     val a = +"a"
@@ -46,23 +46,23 @@ class SimpleSpace : VarSpace() {
     val green = +"green"
 
     //constraints on above vars
-    fun mkConstraintSet() = mkConstraintSet(
-            conflict(a, b),
-            conflict(a, c),
-            requires(a, d),
-            requires(d, or(e, f)),
-            requires(f, and(g, h, a)),
-            xor(red, green),
-            requires(green, a))
+    fun mkConstraintSet1() = mkConstraintSet(
+        conflict(a, b),
+        conflict(a, c),
+        requires(a, d),
+        requires(d, or(e, f)),
+        requires(f, and(g, h, a)),
+        xor(red, green),
+        requires(green, a))
 
 }
 ```
 
-### Next, instantiate our VarSpace and Pics 
+### Next, instantiate our VarSet and Pics 
 
 ```kotlin
 val vars: SimpleSpace = SimpleSpace()
-val cs1: Pics = vars.mkConstraintSet1().apply { print() }
+val cs1: ConstraintSet = vars.mkConstraintSet1().print()
 ```
 
 This produces the following output:
@@ -84,7 +84,7 @@ Constraints:        //exactly our original constraint is returned
 ### Make a user pick: a = true
 
 ```kotlin
-val cs2 = cs1.assign(vars.a).apply { print() }
+val cs2 = cs1.assign(vars.a).print()
 ```
 
 The system computes inferred pics and simplified constraint.
@@ -102,7 +102,7 @@ Constraints:                //Constraint is simplified based on pics
 
 ### Make another user pic: f = true
 ```kotlin
-val cs3 = cs2.assign(vars.f).apply { print() }
+val cs3 = cs2.assign(vars.f).print()
 ```
 
 Here is the output:
@@ -117,7 +117,7 @@ Constraints:                       //Constraint is simplified even further
 
 ### Make another user pic: red = true
 ```kotlin
-val cs4 = cs3.assign(vars.red).apply { print() }
+val cs4 = cs3.assign(vars.red).print()
 ```
 
 Here is the output:
@@ -130,7 +130,7 @@ Constraints:                               //There is no constraint left
 
 ### Make another user pic: i = true
 ```kotlin
-val cs5 = cs4.assign(vars.i).apply { print() }
+val cs5 = cs4.assign(vars.i).print()
 ```
 
 The only thing that changed is var i moved 
@@ -148,7 +148,7 @@ Constraints:
 
 Note the use of bang operator in the DSL
 ```kotlin
-val cs6 = cs5.assign(!vars.g).apply { print() }
+val cs6 = cs5.assign(!vars.g).print()
 ```
 
 Note that the constraint now shows FAILED:
@@ -158,3 +158,29 @@ User Pics:    [a, f, i, red, !g]
 Constraints: FAILED!!
 ```
 
+### Complete code
+
+Here is the complete code:
+
+```kotlin
+val vars: Simple = Simple()
+val cs1: ConstraintSet = vars.mkConstraintSet1().print()
+val cs2 = cs1.assign(vars.a).print()
+val cs3 = cs2.assign(vars.f).print()
+val cs4 = cs3.assign(vars.red).print()
+val cs5 = cs4.assign(vars.i).print()
+val cs6 = cs5.assign(!vars.g).print()
+```
+
+### Make things a bit more terse with a bit of Kotlin coolness:
+
+```kotlin
+Simple().run {
+    mkConstraintSet1().print()
+    .assign(a).print()
+    .assign(f).print()
+    .assign(red).print()
+    .assign(i).print()
+    .assign(!g).print()
+}
+```

@@ -105,7 +105,7 @@ class ConstraintSet(val set: VarSet, val constraint: Exp, val userPics: Set<Lit>
         return deepInfer(constraint)
     }
 
-    fun print() {
+    fun print():ConstraintSet {
         println("User Pics:    ${userPics.sorted()}")
         if (isFailed) {
             println("Constraints: FAILED!!")
@@ -118,6 +118,7 @@ class ConstraintSet(val set: VarSet, val constraint: Exp, val userPics: Set<Lit>
             }
         }
         println()
+        return  this
     }
 
     fun printFull() {
