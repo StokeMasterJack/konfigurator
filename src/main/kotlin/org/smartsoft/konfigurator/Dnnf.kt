@@ -1,6 +1,6 @@
 package org.smartsoft.konfigurator
 
-fun Exp.toDnnf(f: ExpFactory): Exp {
+fun Exp.toDnnf(f: VarSpace): Exp {
     return when (this) {
         is Constant -> this
         is Lit -> this
@@ -24,7 +24,7 @@ fun Exp.toDnnf(f: ExpFactory): Exp {
     }
 }
 
-private fun Complex.dnnfSplit(f: ExpFactory): Exp {
+private fun Complex.dnnfSplit(f: VarSpace): Exp {
     require(this is ComplexAnd || this is NonAnd)
     val d = chooseDecisionVar()
     val pLit = d.lit(true)

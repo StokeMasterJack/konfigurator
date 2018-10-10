@@ -2,8 +2,6 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules/com.smartsoft-konfigurator_main.iml" filepath="$PROJECT_DIR$/.idea/modules/com.smartsoft-konfigurator_main.iml" group="konfigurator" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules/com.smartsoft-konfigurator_test.iml" filepath="$PROJECT_DIR$/.idea/modules/com.smartsoft-konfigurator_test.iml" group="konfigurator" />
       <module fileurl="file://$PROJECT_DIR$/konfigurator.iml" filepath="$PROJECT_DIR$/konfigurator.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/konfigurator_main.iml" filepath="$PROJECT_DIR$/.idea/modules/konfigurator_main.iml" group="konfigurator" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/konfigurator_test.iml" filepath="$PROJECT_DIR$/.idea/modules/konfigurator_test.iml" group="konfigurator" />

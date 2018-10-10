@@ -1,10 +1,9 @@
 package org.smartsoft.konfigurator
 
 
-open class ExpFactory(var _vars: HashSet<Var>? = null) {
+open class VarSpace(var _vars: HashSet<Var>? = null) {
 
     private val map: MutableMap<VarId, Var> = mutableMapOf()
-    private val constraints = mutableListOf<Exp>()
 
     val vars: HashSet<Var>
         get() {
@@ -23,7 +22,8 @@ open class ExpFactory(var _vars: HashSet<Var>? = null) {
     fun mkTrue(): True = constantTrue
     fun mkFalse(): False = constantFalse
 
-    private fun mkVar(id: VarId): Var {
+    @Suppress("MemberVisibilityCanBePrivate")
+    fun mkVar(id: VarId): Var {
         if (_vars != null) throw IllegalStateException()
         var v = map[id]
         if (v == null) {
@@ -163,43 +163,36 @@ open class ExpFactory(var _vars: HashSet<Var>? = null) {
         }
     }
 
-    fun add(e: Exp) {
-        constraints.add(e)
-    }
+    fun conflict(e1: Exp, e2: Exp): Exp = mkConflict(e1, e2)
 
-    fun conflict(e1: Exp, e2: Exp) {
-        add(mkConflict(e1, e2))
-    }
+    fun iff(e1: Exp, e2: Exp): Exp = mkIff(e1, e2)
 
-    fun iff(e1: Exp, e2: Exp) {
-        add(mkIff(e1, e2))
-    }
+    fun requires(e1: Exp, e2: Exp): Exp = mkRequire(e1, e2)
 
-    fun requires(e1: Exp, e2: Exp) {
-        add(mkRequire(e1, e2))
-    }
+    fun xor(vararg exps: Exp): Exp = mkXor(exps.toList())
 
-    fun xor(vararg exps: Exp) {
-        add(mkXor(exps.toList()))
-    }
+    fun and(vararg exps: Exp): Exp = mkAnd(exps.toList())
 
-    fun and(vararg exps: Exp): Exp {
-        return mkAnd(exps.toList())
-    }
+    fun or(vararg exps: Exp): Exp = mkOr(exps.toList())
 
-    fun or(vararg exps: Exp): Exp {
-        return mkOr(exps.toList())
-    }
-
-    fun mkCsp(): Csp {
-        val exp: Exp = mkAnd(constraints)
-        val f: ExpFactory = this
-        return Csp(f, exp)
-    }
+//    fun mkRuleSet(constraints: List<Exp>): RuleSet {
+//        val exp: Exp = mkAnd(constraints)
+//        return RuleSet(this, exp)
+//    }
 
     fun <T : Exp> mk(exp: T): T {
         return exp
     }
 
+//    fun Iterable<Exp>.mkRuleSet(): RuleSet {
+//        val constraints: Iterable<Exp> = this@mkRuleSet
+//        val space: VarSpace = this@VarSpace
+//        return RuleSet(space = space, constraint = mkAnd(constraints))
+//    }
+
+    fun mkRuleSet(vararg elements: Exp): RuleSet {
+        val constraints: List<Exp> = if (elements.isNotEmpty()) elements.asList() else emptyList()
+        return RuleSet(space = this, constraint = mkAnd(constraints))
+    }
 
 }

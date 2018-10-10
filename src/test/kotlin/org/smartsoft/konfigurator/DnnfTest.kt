@@ -1,24 +1,24 @@
 package org.smartsoft.konfigurator
 
 import org.junit.Before
-import org.smartsoft.konfigurator.data.SimpleExample
+import org.smartsoft.konfigurator.data.SimpleSpace
 import kotlin.test.Test
 
 class DnnfTest {
 
-    lateinit var vars: SimpleExample
-    lateinit var csp: Csp
+    lateinit var space: SimpleSpace
+    lateinit var rs1: RuleSet
     @Before
     fun setup() {
-        vars = SimpleExample()
-        csp = vars.buildCsp()
+        space = SimpleSpace()
+        rs1 = space.mkRuleSet1()
     }
 
     @Test
     fun test() {
-        with(vars) {
-            println(csp.toDnnf())
-            csp.assign(a).apply {
+        with(space) {
+            println(rs1.toDnnf())
+            rs1.assign(a).apply {
                 println(toDnnf())
             }.assign(!e).apply {
                 println(toDnnf())

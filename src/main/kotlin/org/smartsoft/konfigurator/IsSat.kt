@@ -1,6 +1,6 @@
 package org.smartsoft.konfigurator
 
-fun Exp.isSat(f: ExpFactory): Boolean {
+fun Exp.isSat(f: VarSpace): Boolean {
     return when (this) {
         is False -> false
         is True -> true

@@ -1,26 +1,26 @@
 package org.smartsoft.konfigurator
 
 import org.junit.Before
-import org.smartsoft.konfigurator.data.SimpleExample
+import org.smartsoft.konfigurator.data.SimpleSpace
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
-class SimpleExampleTest {
+class SimpleTest {
 
-    lateinit var expFactory: SimpleExample
-    lateinit var csp: Csp
+    lateinit var space: SimpleSpace
+    lateinit var rs1: RuleSet
 
     @Before
     fun setup() {
-        expFactory = SimpleExample()
-        csp = expFactory.buildCsp()
+        space = SimpleSpace()
+        rs1 = space.mkRuleSet1()
     }
 
     @Test
     fun testPosA() {
-        with(expFactory) {
-            assertEquals(csp, csp.maybeSimplify())
-            csp.assign(a).apply {
+        with(space) {
+            assertEquals(rs1, rs1.maybeSimplify())
+            rs1.assign(a).apply {
                 checkLits(a, !b, !c, d)
                 checkDontCares(i)
                 checkConstraint("And[Or[e, f], Requires[f, And[g, h]], Xor[green, red]]")
@@ -41,7 +41,7 @@ class SimpleExampleTest {
                 checkFailed()
                 checkNotSat()
             }
-            csp.assign(a, !e, green).apply {
+            rs1.assign(a, !e, green).apply {
                 checkLits(a, !b, !c, d, !e, f, g, h, green, !red)
                 checkDontCares(i)
                 checkConstraintEmpty()
@@ -52,8 +52,8 @@ class SimpleExampleTest {
 
     @Test
     fun testNegA() {
-        with(expFactory) {
-            csp.assign(!a).apply {
+        with(space) {
+            rs1.assign(!a).apply {
                 checkLits(!a, !f, !green, red)
                 checkDontCares(b, c, g, h, i)
                 checkConstraint("Requires[d, e]")
@@ -74,8 +74,8 @@ class SimpleExampleTest {
 
     @Test
     fun testPosB1() {
-        with(expFactory) {
-            csp.assign(b).apply {
+        with(space) {
+            rs1.assign(b).apply {
                 checkLits(!a, b, !f, !green, red)
                 checkDontCares(c, g, h, i)
                 checkConstraint("Requires[d, e]")
@@ -99,8 +99,8 @@ class SimpleExampleTest {
 
     @Test
     fun testPosB() {
-        with(expFactory) {
-            csp.assign(b).apply {
+        with(space) {
+            rs1.assign(b).apply {
                 checkLits(!a, b, !f, !green, red)
                 checkDontCares(c, g, h, i)
                 checkConstraint("Requires[d, e]")
@@ -124,8 +124,8 @@ class SimpleExampleTest {
 
     @Test
     fun testNegB() {
-        with(expFactory) {
-            val csp1 = csp.assign(!b).apply {
+        with(space) {
+            val rs1a = rs1.assign(!b).apply {
                 checkLits(!b)
                 checkDontCares(i)
                 checkConstraint("And[Conflict[a, c], Requires[a, d], Requires[green, a], Requires[d, Or[e, f]], Requires[f, And[a, g, h]], Xor[green, red]]")
@@ -142,21 +142,21 @@ class SimpleExampleTest {
                 checkSat()
             }
 
-            csp1.assign(!green).apply {
+            rs1a.assign(!green).apply {
                 checkFailed()
                 checkNotSat()
             }
 
-            csp.assign(!b, green, !e).apply {
-                assertEquals(csp1, this)
+            rs1.assign(!b, green, !e).apply {
+                assertEquals(rs1a, this)
             }
         }
     }
 
     @Test
     fun testPosC() {
-        with(expFactory) {
-            val csp1 = csp.assign(c).apply {
+        with(space) {
+            val rs1a = rs1.assign(c).apply {
                 checkLits(!a, c, !f, !green, red)
                 checkDontCares(b, g, h, i)
                 checkConstraint("Requires[d, e]")
@@ -173,17 +173,17 @@ class SimpleExampleTest {
                 checkSat()
             }
 
-            csp.assign(c, b, !g, e).apply {
-                assertEquals(csp1, this)
+            rs1.assign(c, b, !g, e).apply {
+                assertEquals(rs1a, this)
             }
         }
     }
 
     @Test
     fun testNegC() {
-        with(expFactory) {
+        with(space) {
 
-            val csp1 = csp.assign(!c).apply {
+            val rs1a = rs1.assign(!c).apply {
                 checkLits(!c)
                 checkDontCares(i)
                 checkConstraint("And[Conflict[a, b], Requires[a, d], Requires[green, a], Requires[d, Or[e, f]], Requires[f, And[a, g, h]], Xor[green, red]]")
@@ -210,8 +210,8 @@ class SimpleExampleTest {
                 checkSat()
             }
 
-            csp.assign(!c, !h, d, a, !green).apply {
-                assertEquals(csp1, this)
+            rs1.assign(!c, !h, d, a, !green).apply {
+                assertEquals(rs1a, this)
                 checkSat()
             }
         }
@@ -219,9 +219,9 @@ class SimpleExampleTest {
 
     @Test
     fun testPosD() {
-        with(expFactory) {
+        with(space) {
 
-            val csp1 = csp.assign(d).apply {
+            val rs1a = rs1.assign(d).apply {
                 checkLits(d)
                 checkDontCares(i)
                 checkConstraint("And[Conflict[a, b], Conflict[a, c], Or[e, f], Requires[green, a], Requires[f, And[a, g, h]], Xor[green, red]]")
@@ -243,8 +243,8 @@ class SimpleExampleTest {
                 checkSat()
             }
 
-            csp.assign(d, green, e, !g).apply {
-                assertEquals(csp1, this)
+            rs1.assign(d, green, e, !g).apply {
+                assertEquals(rs1a, this)
                 checkSat()
             }
         }
@@ -252,8 +252,8 @@ class SimpleExampleTest {
 
     @Test
     fun testNegD() {
-        with(expFactory) {
-            csp.assign(!d).apply {
+        with(space) {
+            rs1.assign(!d).apply {
                 checkLits(!a, !d, !green, !f, red)
                 checkDontCares(b, c, e, g, h, i)
                 checkConstraintEmpty()
@@ -264,8 +264,8 @@ class SimpleExampleTest {
 
     @Test
     fun testPosE() {
-        with(expFactory) {
-            csp.assign(e, green).apply {
+        with(space) {
+            rs1.assign(e, green).apply {
                 checkLits(a, !b, !c, d, e, green, !red)
                 checkDontCares(i)
                 checkConstraint("Requires[f, And[g, h]]")
@@ -286,8 +286,8 @@ class SimpleExampleTest {
 
     @Test
     fun testNegE() {
-        with(expFactory) {
-            csp.assign(!e, !f).apply {
+        with(space) {
+            rs1.assign(!e, !f).apply {
                 checkLits(!a, !d, !e, !f, !green, red)
                 checkDontCares(b, c, i, g, h)
                 checkConstraintEmpty()
@@ -298,8 +298,8 @@ class SimpleExampleTest {
 
     @Test
     fun testPosF() {
-        with(expFactory) {
-            csp.assign(f).apply {
+        with(space) {
+            rs1.assign(f).apply {
                 checkLits(a, !b, !c, d, f, g, h)
                 checkDontCares(e, i)
                 checkConstraint("Xor[green, red]")
@@ -315,8 +315,8 @@ class SimpleExampleTest {
 
     @Test
     fun testNegF() {
-        with(expFactory) {
-            csp.assign(!f).apply {
+        with(space) {
+            rs1.assign(!f).apply {
                 checkLits(!f)
                 checkDontCares(g, h, i)
                 checkConstraint("And[Conflict[a, b], Conflict[a, c], Requires[a, d], Requires[green, a], Requires[d, e], Xor[green, red]]")
@@ -337,8 +337,8 @@ class SimpleExampleTest {
 
     @Test
     fun testPosG() {
-        with(expFactory) {
-            csp.assign(g).apply {
+        with(space) {
+            rs1.assign(g).apply {
                 checkLits(g)
                 checkDontCares(i)
                 checkConstraint("And[Conflict[a, b], Conflict[a, c], Requires[a, d], Requires[green, a], Requires[d, Or[e, f]], Requires[f, And[a, h]], Xor[green, red]]")
@@ -370,8 +370,8 @@ class SimpleExampleTest {
 
     @Test
     fun testNegG() {
-        with(expFactory) {
-            csp.assign(!g).apply {
+        with(space) {
+            rs1.assign(!g).apply {
                 checkLits(!f, !g)
                 checkDontCares(h, i)
                 checkConstraint("And[Conflict[a, b], Conflict[a, c], Requires[a, d], Requires[green, a], Requires[d, e], Xor[green, red]]")
@@ -393,8 +393,8 @@ class SimpleExampleTest {
 
     @Test
     fun testPosH() {
-        with(expFactory) {
-            csp.assign(h).apply {
+        with(space) {
+            rs1.assign(h).apply {
                 checkLits(h)
                 checkDontCares(i)
                 checkConstraint("And[Conflict[a, b], Conflict[a, c], Requires[a, d], Requires[green, a], Requires[d, Or[e, f]], Requires[f, And[a, g]], Xor[green, red]]")
@@ -425,8 +425,8 @@ class SimpleExampleTest {
 
     @Test
     fun testNegH() {
-        with(expFactory) {
-            val csp1 = csp.assign(!h).apply {
+        with(space) {
+            val rs1a = rs1.assign(!h).apply {
                 checkLits(!f, !h)
                 checkDontCares(g, i)
                 checkConstraint("And[Conflict[a, b], Conflict[a, c], Requires[a, d], Requires[green, a], Requires[d, e], Xor[green, red]]")
@@ -442,8 +442,8 @@ class SimpleExampleTest {
                 checkConstraintEmpty()
                 checkSat()
             }
-            csp.assign(!h, a, green).apply {
-                assertEquals(csp1, this)
+            rs1.assign(!h, a, green).apply {
+                assertEquals(rs1a, this)
             }
         }
     }
@@ -451,8 +451,8 @@ class SimpleExampleTest {
 
     @Test
     fun testPosGreen() {
-        with(expFactory) {
-            val csp1 = csp.assign(green).apply {
+        with(space) {
+            val rs1a = rs1.assign(green).apply {
                 checkLits(a, !b, !c, d, green, !red)
                 checkDontCares(i)
                 checkConstraint("And[Or[e, f], Requires[f, And[g, h]]]")
@@ -463,16 +463,16 @@ class SimpleExampleTest {
                 checkConstraintEmpty()
                 checkSat()
             }
-            csp.assign(green, !f).apply {
-                assertEquals(csp1, this)
+            rs1.assign(green, !f).apply {
+                assertEquals(rs1a, this)
             }
         }
     }
 
     @Test
     fun testNegGreen() {
-        with(expFactory) {
-            val csp1 = csp.assign(!green).apply {
+        with(space) {
+            val rs1a = rs1.assign(!green).apply {
                 checkLits(!green, red)
                 checkDontCares(i)
                 checkConstraint("And[Conflict[a, b], Conflict[a, c], Requires[a, d], Requires[d, Or[e, f]], Requires[f, And[a, g, h]]]")
@@ -493,8 +493,8 @@ class SimpleExampleTest {
                 checkConstraintEmpty()
                 checkSat()
             }
-            csp.assign(!green, !h, !a, d).apply {
-                assertEquals(csp1, this)
+            rs1.assign(!green, !h, !a, d).apply {
+                assertEquals(rs1a, this)
             }
         }
     }

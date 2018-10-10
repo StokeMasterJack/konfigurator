@@ -1,7 +1,7 @@
 package org.smartsoft.konfigurator
 
 
-class Csp(val expFactory: ExpFactory, val constraint: Exp, val picks: Set<Lit> = emptySet()) {
+class RuleSet(val space: VarSpace, val constraint: Exp, val userPics: Set<Lit> = emptySet()) {
 
     val isFailed: Boolean
         get() = constraint is False
@@ -9,10 +9,10 @@ class Csp(val expFactory: ExpFactory, val constraint: Exp, val picks: Set<Lit> =
 
     val effectiveConstraint: Exp
         get() = when (constraint) {
-            is False -> expFactory.mkFalse()
-            is True -> expFactory.mkTrue()
-            is Lit -> expFactory.mkTrue()
-            is LitAnd -> expFactory.mkTrue()
+            is False -> space.mkFalse()
+            is True -> space.mkTrue()
+            is Lit -> space.mkTrue()
+            is LitAnd -> space.mkTrue()
             is MixedAnd -> when (constraint.constraint) {
                 is ComplexAnd -> constraint.constraint
                 is NonAnd -> constraint.constraint
@@ -46,21 +46,26 @@ class Csp(val expFactory: ExpFactory, val constraint: Exp, val picks: Set<Lit> =
             is NonAnd -> LitAnd.EMPTY
         }
 
+    val inferredPics: Iterable<Lit>
+        get() {
+            return lits.asIterable.filter { !userPics.contains(it) }
+        }
+
     fun dontCares(): Set<Var> {
         return vars - constraint.vars
     }
 
-    val vars: Set<Var> get() = expFactory.vars
+    val vars: Set<Var> get() = space.vars
 
     fun isSat(): Boolean {
-        return constraint.isSat(expFactory)
+        return constraint.isSat(space)
     }
 
     /**
      * Compiles boolean expression into DNNF form
      */
     fun toDnnf(): Exp {
-        return constraint.toDnnf(expFactory)
+        return constraint.toDnnf(space)
     }
 
     private fun deepInfer(c: Exp): List<Lit> {
@@ -72,7 +77,7 @@ class Csp(val expFactory: ExpFactory, val constraint: Exp, val picks: Set<Lit> =
             if (c.disjoint) {
                 deepInfer(c.constraint)
             } else {
-                deepInfer(c.maybeSimplify(expFactory))
+                deepInfer(c.maybeSimplify(space))
             }
         } else {
             require(c is ComplexAnd || c is NonAnd)
@@ -101,19 +106,34 @@ class Csp(val expFactory: ExpFactory, val constraint: Exp, val picks: Set<Lit> =
     }
 
     fun print() {
-        println("Picks: ${picks.sorted()}")
+        println("User Pics:    ${userPics.sorted()}")
         if (isFailed) {
-            println("  Failed")
+            println("Constraints: FAILED!!")
         } else {
-            println("  Lits: ${lits.asIterable.sorted()}")
-            println("  DontCares: ${dontCares()}")
-            println("  Constraint: $effectiveConstraint")
-            println("  Constraints: ")
+            println("Inferred Pics: ${inferredPics.sorted()}")
+            println("Unconstrained: ${dontCares()}")
+            println("Constraints: ")
             for (exp in effectiveConstraints) {
-                println("    $exp")
+                println("  $exp")
+            }
+        }
+        println()
+    }
+
+    fun printFull() {
+        println("User Picks:    ${userPics.sorted()}")
+        if (isFailed) {
+            println("Failed")
+        } else {
+            println("Inferred Pics: ${inferredPics.sorted()}")
+            println("Unconstrained: ${dontCares()}")
+//            println("  Constraint: $effectiveConstraint")
+            println("Constraints: ")
+            for (exp in effectiveConstraints) {
+                println("  $exp")
             }
             println("  isSat: ${isSat()}")
-            println("  deepInfer: ${deepInfer()}")
+//            println("  deepInfer: ${deepInfer()}")
             val dnnf = toDnnf()
             println("  dnnf: $dnnf")
             check(dnnf.isDisjointDeep())
@@ -121,29 +141,29 @@ class Csp(val expFactory: ExpFactory, val constraint: Exp, val picks: Set<Lit> =
         println()
     }
 
-    fun assign(vararg args: Lit): Csp {
+    fun assign(vararg args: Lit): RuleSet {
         return assign(args.toSet())
     }
 
-    fun assign(args: Set<Lit>): Csp {
+    fun assign(args: Set<Lit>): RuleSet {
         val lits = LitAndBuilder().assignLits(args)
         if (lits.isFailed()) throw IllegalArgumentException("Conflicting assignment: [${lits.conflictLit}]")
         val aa = lits.mkAssignment()
-        val s: Exp = constraint.assign(aa, expFactory)
-        val newPics: Set<Lit> = picks + args
-        return Csp(expFactory, s, newPics)
+        val s: Exp = constraint.assign(aa, space)
+        val newPics: Set<Lit> = userPics + args
+        return RuleSet(space, s, newPics)
     }
 
-    fun maybeSimplify(): Csp {
-        val s = constraint.maybeSimplify(expFactory)
+    fun maybeSimplify(): RuleSet {
+        val s = constraint.maybeSimplify(space)
         if (s == constraint) return this
-        return Csp(expFactory, s)
+        return RuleSet(space, s)
     }
 
     override fun equals(other: Any?): Boolean {
         if (other == null) return false
-        if (other !is Csp) return false
-        return this.vars == other.vars && this.constraint == other.constraint && this.picks == other.picks
+        if (other !is RuleSet) return false
+        return this.vars == other.vars && this.constraint == other.constraint && this.userPics == other.userPics
     }
 
     fun checkLits(vararg expected: Lit) {
@@ -192,12 +212,12 @@ class Csp(val expFactory: ExpFactory, val constraint: Exp, val picks: Set<Lit> =
     }
 
     fun allSat(callback: AllSatCallback) {
-        constraint.allSat(vars, callback, expFactory)
+        constraint.allSat(vars, callback, space)
     }
 
     fun satCount(): Long {
         val counter = Counter()
-        constraint.satCount(vars, counter, expFactory)
+        constraint.satCount(vars, counter, space)
         return counter.cnt
     }
 

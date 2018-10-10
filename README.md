@@ -1,6 +1,150 @@
 # Konfigurator - a product configurator engine
 
-###  <span style="color:blue">_Note: this is very experimental at this stage._</span>
+**_Note: this is very experimental at this stage._**
 
-## Overview
+### Overview
+This tool allows you to:
+ 
+- Define a set of configuration rules comprised of:
+  1. A VarSpace: a set of boolean variables (representing product features). 
+     This is called the _var space_.
+  2. A RuleSet: a set of constraints 
+     (in the form of a boolean expression) on a those vars
+- Specify user pics (the current configuration)
+- Test if the current configuration is valid
+- Compute a new, simplified constraint based on current configuration.
+- Compute inferred pics based on user pics  
+
+### Defining rules using Kotlin DSL
+A rule set may be defined using the Kotlin DSL or 
+by using the Kotlin API. 
+Here is a simple rule set using the Kotlin DSL:
+
+```kotlin
+class SimpleSpace : VarSpace() {
+
+    //vars: product features
+    val a = +"a"
+    val b = +"b"
+    val c = +"c"
+    val d = +"d"
+    val e = +"e"
+    val f = +"f"
+    val g = +"g"
+    val h = +"h"
+    val i = +"i"
+    val red = +"red"
+    val green = +"green"
+
+    //constraints on above vars
+    fun mkRuleSet() = mkRuleSet(
+            conflict(a, b),
+            conflict(a, c),
+            requires(a, d),
+            requires(d, or(e, f)),
+            requires(f, and(g, h, a)),
+            xor(red, green),
+            requires(green, a))
+
+}
+```
+
+### Instantiate our VarSpace and RuleSet 
+```kotlin
+val vars: SimpleSpace = SimpleSpace()
+val rs1: RuleSet = vars.mkRuleSet1().apply { print() }
+```
+
+This produces the following output:
+
+```
+User Pics:    []    //no user pics yet
+Inferred Pics: []   //nothing can be inferred so far
+Unconstrained: [i]  //i is the only var with no constraint
+Constraints:        //exactly our original constraint is returned
+  Conflict[a, b]
+  Conflict[a, c]
+  Requires[a, d]
+  Requires[d, Or[e, f]]
+  Requires[f, And[a, g, h]]
+  Xor[green, red]
+  Requires[green, a]
+```
+
+### Make a user pick: a = true
+
+```kotlin
+val rs2 = rs1.assign(vars.a).apply { print() }
+```
+
+The system computes inferred pics and simplified constraint.
+Here is the output:
+
+```
+User pics:     [a]          //We now have one user pic
+Inferred pics: [d, !b, !c]  //3 vars have been inferred
+Unconstrained: [i]          //i is still the only unconstrained var
+Constraints:                //Constraint is simplified based on pics
+  Or[e, f]
+  Requires[f, And[g, h]]
+  Xor[green, red]
+```
+
+### Make another user pic: f = true
+```kotlin
+val rs3 = rs2.assign(vars.f).apply { print() }
+```
+
+Here is the output:
+
+```
+User pics:     [a, f]              //We now have 2 user pics
+Inferred pics: [d, g, h, !b, !c]   //2 more vars have been inferred
+Unconstrained: [i, e]              //we now have 2 unconstrained vars 
+Constraints:                       //Constraint is simplified even further
+  Xor[green, red]
+```  
+
+### Make another user pic: red = true
+```kotlin
+val rs4 = rs3.assign(vars.red).apply { print() }
+```
+
+Here is the output:
+```
+User pics:     [a, f, red]                 //We now have 3 user pics
+Inferred pics: [d, g, h, !b, !c, !green]   //And 6 inferred pics
+Unconstrained: [i, e]                      //i and e are still unconstrained
+Constraints:                               //There is no constraint left
+```  
+
+### Make another user pic: i = true
+```kotlin
+val rs5 = rs4.assign(vars.i).apply { print() }
+```
+
+The only thing that changed is var i moved 
+from _Unconstrained_ to _User pics_:
+
+```
+User pics:     [a, f, i, red]
+Inferred pics: [d, g, h, !b, !c, !green]
+Unconstrained: [e]
+Constraints: 
+                             
+```  
+
+### Make conflicting pic: g = false
+
+Note the use of bang operator in the DSL
+```kotlin
+val rs6 = rs5.assign(!vars.g).apply { print() }
+```
+
+Note that the constraint now shows FAILED:
+
+```
+User Pics:    [a, f, i, red, !g]
+Constraints: FAILED!!
+```
 

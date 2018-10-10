@@ -17,7 +17,8 @@ class ComplexAndBuilder(private val list: MutableList<NonAnd> = mutableListOf())
         }
     }
 
-    fun mk(f: ExpFactory): Exp {
+    @Suppress("UNUSED_PARAMETER")
+    fun mk(f: VarSpace): Exp {
         return ComplexAnd(list)
     }
 
