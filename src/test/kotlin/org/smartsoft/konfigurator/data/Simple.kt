@@ -1,9 +1,9 @@
 package org.smartsoft.konfigurator.data
 
-import org.smartsoft.konfigurator.VarSpace
+import org.smartsoft.konfigurator.VarSet
 
 
-class SimpleSpace : VarSpace() {
+class Simple : VarSet() {
 
     val a = +"a"
     val b = +"b"
@@ -17,7 +17,7 @@ class SimpleSpace : VarSpace() {
     val red = +"red"
     val green = +"green"
 
-    fun mkRuleSet1() = mkRuleSet(
+    fun mkConstraintSet1() = mkConstraintSet(
             conflict(a, b),
             conflict(a, c),
             requires(a, d),
@@ -27,7 +27,7 @@ class SimpleSpace : VarSpace() {
             requires(green, a))
 
 
-    fun mkRuleSet2() = mkRuleSet(
+    fun mkConstraintSet2() = mkConstraintSet(
             xor(a, b, c, d, e, f, g),
             xor(green, red))
 

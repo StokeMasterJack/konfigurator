@@ -1,7 +1,7 @@
 package org.smartsoft.konfigurator
 
 
-class AndBuilder(val space: VarSpace) {
+class AndBuilder(val set: VarSet) {
 
     val lits: LitAndBuilder = LitAndBuilder()
     val complex: ComplexAndBuilder = ComplexAndBuilder()
@@ -34,7 +34,7 @@ class AndBuilder(val space: VarSpace) {
         }
 
         val s = if (assignments != null) {
-            val ss = e.maybeSimplify(assignments, space)
+            val ss = e.maybeSimplify(assignments, set)
             ss
         } else {
             e
@@ -86,22 +86,22 @@ class AndBuilder(val space: VarSpace) {
     fun mk(): Exp {
         return when {
             isFailed -> {
-                space.mkFalse()
+                set.mkFalse()
             }
             isEmpty() -> {
-                space.mkTrue()
+                set.mkTrue()
             }
             isPureLits -> {
-                lits.mk(space)
+                lits.mk(set)
             }
             isPureComplex -> {
-                complex.mk(space)
+                complex.mk(set)
             }
             isMixed -> {
-                val e1 = complex.mk(space) as Complex
-                val e2 = lits.mk(space) as Assignment
+                val e1 = complex.mk(set) as Complex
+                val e2 = lits.mk(set) as Assignment
                 val disjoint = e1.isDisjoint(e2)
-                space.mk(MixedAnd(e1, e2, disjoint))
+                set.mk(MixedAnd(e1, e2, disjoint))
             }
             else -> {
                 throw IllegalStateException()

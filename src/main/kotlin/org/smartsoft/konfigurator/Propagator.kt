@@ -8,7 +8,7 @@ class Propagator {
         /**
          * conjoin and simplify
          */
-        fun propagate(f: VarSpace, constraint: Complex, pics: Assignment?): Exp {
+        fun propagate(f: VarSet, constraint: Complex, pics: Assignment?): Exp {
 
             require(constraint is ComplexAnd || constraint is MixedAnd || constraint is NonAnd)
 

@@ -91,7 +91,7 @@ class LitAndBuilder(private val map: MutableMap<Var, Boolean> = mutableMapOf()) 
         }
     }
 
-    fun mk(f: VarSpace): Exp {
+    fun mk(f: VarSet): Exp {
         return f.mk(mk())
     }
 

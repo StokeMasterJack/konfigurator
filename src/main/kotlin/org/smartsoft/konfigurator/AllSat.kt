@@ -2,7 +2,7 @@ package org.smartsoft.konfigurator
 
 typealias AllSatCallback = (solution: LitAnd, dontCars: Set<Var>) -> Unit
 
-fun Exp.allSat(vars: Set<Var>, callback: AllSatCallback, f: VarSpace) {
+fun Exp.allSat(vars: Set<Var>, callback: AllSatCallback, f: VarSet) {
 
     return when (this) {
         is Constant -> throw IllegalStateException()

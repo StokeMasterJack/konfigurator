@@ -13,7 +13,7 @@ class Counter {
 
 }
 
-fun Exp.satCount(vars: Set<Var>, counter: Counter, f: VarSpace) {
+fun Exp.satCount(vars: Set<Var>, counter: Counter, f: VarSet) {
 
     return when (this) {
         is Constant -> throw IllegalStateException()

@@ -1,7 +1,7 @@
 package org.smartsoft.konfigurator
 
 
-open class VarSpace(var _vars: HashSet<Var>? = null) {
+open class VarSet(var _vars: HashSet<Var>? = null) {
 
     private val map: MutableMap<VarId, Var> = mutableMapOf()
 
@@ -175,24 +175,24 @@ open class VarSpace(var _vars: HashSet<Var>? = null) {
 
     fun or(vararg exps: Exp): Exp = mkOr(exps.toList())
 
-//    fun mkRuleSet(constraints: List<Exp>): RuleSet {
+//    fun mkConstraintSet(constraints: List<Exp>): ConstraintSet {
 //        val exp: Exp = mkAnd(constraints)
-//        return RuleSet(this, exp)
+//        return ConstraintSet(this, exp)
 //    }
 
     fun <T : Exp> mk(exp: T): T {
         return exp
     }
 
-//    fun Iterable<Exp>.mkRuleSet(): RuleSet {
-//        val constraints: Iterable<Exp> = this@mkRuleSet
-//        val space: VarSpace = this@VarSpace
-//        return RuleSet(space = space, constraint = mkAnd(constraints))
+//    fun Iterable<Exp>.mkConstraintSet(): ConstraintSet {
+//        val constraints: Iterable<Exp> = this@mkConstraintSet
+//        val set: VarSet = this@VarSet
+//        return ConstraintSet(set = set, constraint = mkAnd(constraints))
 //    }
 
-    fun mkRuleSet(vararg elements: Exp): RuleSet {
+    fun mkConstraintSet(vararg elements: Exp): ConstraintSet {
         val constraints: List<Exp> = if (elements.isNotEmpty()) elements.asList() else emptyList()
-        return RuleSet(space = this, constraint = mkAnd(constraints))
+        return ConstraintSet(set = this, constraint = mkAnd(constraints))
     }
 
 }

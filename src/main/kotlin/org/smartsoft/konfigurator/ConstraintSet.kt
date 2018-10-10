@@ -1,7 +1,7 @@
 package org.smartsoft.konfigurator
 
 
-class RuleSet(val space: VarSpace, val constraint: Exp, val userPics: Set<Lit> = emptySet()) {
+class ConstraintSet(val set: VarSet, val constraint: Exp, val userPics: Set<Lit> = emptySet()) {
 
     val isFailed: Boolean
         get() = constraint is False
@@ -9,10 +9,10 @@ class RuleSet(val space: VarSpace, val constraint: Exp, val userPics: Set<Lit> =
 
     val effectiveConstraint: Exp
         get() = when (constraint) {
-            is False -> space.mkFalse()
-            is True -> space.mkTrue()
-            is Lit -> space.mkTrue()
-            is LitAnd -> space.mkTrue()
+            is False -> set.mkFalse()
+            is True -> set.mkTrue()
+            is Lit -> set.mkTrue()
+            is LitAnd -> set.mkTrue()
             is MixedAnd -> when (constraint.constraint) {
                 is ComplexAnd -> constraint.constraint
                 is NonAnd -> constraint.constraint
@@ -55,17 +55,17 @@ class RuleSet(val space: VarSpace, val constraint: Exp, val userPics: Set<Lit> =
         return vars - constraint.vars
     }
 
-    val vars: Set<Var> get() = space.vars
+    val vars: Set<Var> get() = set.vars
 
     fun isSat(): Boolean {
-        return constraint.isSat(space)
+        return constraint.isSat(set)
     }
 
     /**
      * Compiles boolean expression into DNNF form
      */
     fun toDnnf(): Exp {
-        return constraint.toDnnf(space)
+        return constraint.toDnnf(set)
     }
 
     private fun deepInfer(c: Exp): List<Lit> {
@@ -77,7 +77,7 @@ class RuleSet(val space: VarSpace, val constraint: Exp, val userPics: Set<Lit> =
             if (c.disjoint) {
                 deepInfer(c.constraint)
             } else {
-                deepInfer(c.maybeSimplify(space))
+                deepInfer(c.maybeSimplify(set))
             }
         } else {
             require(c is ComplexAnd || c is NonAnd)
@@ -141,28 +141,28 @@ class RuleSet(val space: VarSpace, val constraint: Exp, val userPics: Set<Lit> =
         println()
     }
 
-    fun assign(vararg args: Lit): RuleSet {
+    fun assign(vararg args: Lit): ConstraintSet {
         return assign(args.toSet())
     }
 
-    fun assign(args: Set<Lit>): RuleSet {
+    fun assign(args: Set<Lit>): ConstraintSet {
         val lits = LitAndBuilder().assignLits(args)
         if (lits.isFailed()) throw IllegalArgumentException("Conflicting assignment: [${lits.conflictLit}]")
         val aa = lits.mkAssignment()
-        val s: Exp = constraint.assign(aa, space)
+        val s: Exp = constraint.assign(aa, set)
         val newPics: Set<Lit> = userPics + args
-        return RuleSet(space, s, newPics)
+        return ConstraintSet(set, s, newPics)
     }
 
-    fun maybeSimplify(): RuleSet {
-        val s = constraint.maybeSimplify(space)
+    fun maybeSimplify(): ConstraintSet {
+        val s = constraint.maybeSimplify(set)
         if (s == constraint) return this
-        return RuleSet(space, s)
+        return ConstraintSet(set, s)
     }
 
     override fun equals(other: Any?): Boolean {
         if (other == null) return false
-        if (other !is RuleSet) return false
+        if (other !is ConstraintSet) return false
         return this.vars == other.vars && this.constraint == other.constraint && this.userPics == other.userPics
     }
 
@@ -212,12 +212,12 @@ class RuleSet(val space: VarSpace, val constraint: Exp, val userPics: Set<Lit> =
     }
 
     fun allSat(callback: AllSatCallback) {
-        constraint.allSat(vars, callback, space)
+        constraint.allSat(vars, callback, set)
     }
 
     fun satCount(): Long {
         val counter = Counter()
-        constraint.satCount(vars, counter, space)
+        constraint.satCount(vars, counter, set)
         return counter.cnt
     }
 

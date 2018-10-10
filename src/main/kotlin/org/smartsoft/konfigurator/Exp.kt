@@ -112,18 +112,18 @@ sealed class Exp : Comparable<Exp> {
         is NonAnd -> exps.any { it.containsVar(v) }
     }
 
-    abstract fun assign(pics: Assignment, f: VarSpace): Exp
+    abstract fun assign(pics: Assignment, f: VarSet): Exp
 
-    abstract fun maybeSimplify(f: VarSpace): Exp
+    abstract fun maybeSimplify(f: VarSet): Exp
 
-    fun maybeSimplify(a: Assignment, f: VarSpace): Exp {
+    fun maybeSimplify(a: Assignment, f: VarSet): Exp {
         if (!anyOverlap(a)) return this
         val after = simplify(a, f)
         check(after !== this)
         return after
     }
 
-    abstract fun simplify(assignment: Assignment, f: VarSpace): Exp
+    abstract fun simplify(assignment: Assignment, f: VarSet): Exp
 
 
     val typeDetail: KClass<out Exp>
@@ -157,7 +157,7 @@ sealed class Exp : Comparable<Exp> {
         }
     }
 
-    fun flip(f: VarSpace): Exp = when (this) {
+    fun flip(f: VarSet): Exp = when (this) {
         is False -> f.mkTrue()
         is True -> f.mkFalse()
         is Var -> neg
@@ -211,22 +211,22 @@ sealed class Constant : Simple() {
         emptySet<Var>()
     }
 
-    override fun maybeSimplify(f: VarSpace): Exp {
+    override fun maybeSimplify(f: VarSet): Exp {
         return this
     }
 
-    override fun simplify(assignment: Assignment, f: VarSpace): Exp {
+    override fun simplify(assignment: Assignment, f: VarSet): Exp {
         throw UnsupportedOperationException()
     }
 
 }
 
 class True : Constant() {
-    override fun assign(pics: Assignment, f: VarSpace): Exp = pics.asExp
+    override fun assign(pics: Assignment, f: VarSet): Exp = pics.asExp
 }
 
 class False : Constant() {
-    override fun assign(pics: Assignment, f: VarSpace): Exp = f.mkFalse()
+    override fun assign(pics: Assignment, f: VarSet): Exp = f.mkFalse()
 }
 
 sealed class Complex : Exp() {
@@ -291,7 +291,7 @@ class Not(val exp: Complex) : NonAnd() {
         check(exp !is Not)
     }
 
-    override fun maybeSimplify(f: VarSpace): Exp {
+    override fun maybeSimplify(f: VarSet): Exp {
         val s = exp.maybeSimplify(f)
         if (s == exp) return this
         return s.flip(f)
@@ -299,7 +299,7 @@ class Not(val exp: Complex) : NonAnd() {
 
     override val vars: Set<Var> get() = exp.vars
 
-    override fun simplify(assignment: Assignment, f: VarSpace): Exp {
+    override fun simplify(assignment: Assignment, f: VarSet): Exp {
         val ss = exp.simplify(assignment, f)
         return ss.flip(f)
     }
@@ -317,7 +317,7 @@ sealed class Lit : Simple(), Assignment {
 
     override val vars: Set<Var> by lazy { setOf(vr) }
 
-    override fun maybeSimplify(f: VarSpace): Exp = this
+    override fun maybeSimplify(f: VarSet): Exp = this
 
     override fun isEmpty(): Boolean = false
 
@@ -329,7 +329,7 @@ sealed class Lit : Simple(), Assignment {
         }
     }
 
-    override fun simplify(assignment: Assignment, f: VarSpace): Exp {
+    override fun simplify(assignment: Assignment, f: VarSet): Exp {
         val boolValue = assignment.value(vr).toBool()
         return if (boolValue == sign) {
             f.mkTrue()
@@ -349,7 +349,7 @@ sealed class Lit : Simple(), Assignment {
         is NegVar -> this.vr
     }
 
-    override fun assign(pics: Assignment, f: VarSpace): Exp {
+    override fun assign(pics: Assignment, f: VarSet): Exp {
         return if (pics is Lit) {
             if (pics.vr == vr) {
                 if (pics.sign == sign) this
@@ -413,7 +413,7 @@ class NegVar(val _vr: Var) : Lit() {
 
 class Conflict(override val e1: Exp, override val e2: Exp) : NonAnd(), Binary {
 
-    override fun simplify(assignment: Assignment, f: VarSpace): Exp {
+    override fun simplify(assignment: Assignment, f: VarSet): Exp {
         val s1 = e1.maybeSimplify(assignment, f)
         val s2 = e2.maybeSimplify(assignment, f)
         if (s1 == f.mkTrue() && s2 == f.mkTrue()) return f.mkFalse()
@@ -435,7 +435,7 @@ class Conflict(override val e1: Exp, override val e2: Exp) : NonAnd(), Binary {
  */
 class Iff(override val e1: Exp, override val e2: Exp) : NonAnd(), Binary {
 
-    override fun simplify(assignment: Assignment, f: VarSpace): Exp {
+    override fun simplify(assignment: Assignment, f: VarSet): Exp {
         val s1 = e1.maybeSimplify(assignment, f)
         val s2 = e2.maybeSimplify(assignment, f)
         if (s1 === f.mkTrue() && s2 == f.mkTrue()) return f.mkTrue()
@@ -458,7 +458,7 @@ class Iff(override val e1: Exp, override val e2: Exp) : NonAnd(), Binary {
 
 class Requires(override val e1: Exp, override val e2: Exp) : NonAnd(), Binary {
 
-    override fun simplify(assignment: Assignment, f: VarSpace): Exp {
+    override fun simplify(assignment: Assignment, f: VarSet): Exp {
         val s1 = e1.maybeSimplify(assignment, f)
         val s2 = e2.maybeSimplify(assignment, f)
         if (s1 === f.mkTrue() && s2 == f.mkFalse()) return f.mkFalse()
@@ -481,7 +481,7 @@ class Xor(override val exps: List<Exp>) : NonAnd(), Nary {
     override val vars: Set<Var>
         get() = exps.vars()
 
-    override fun simplify(assignment: Assignment, f: VarSpace): Exp {
+    override fun simplify(assignment: Assignment, f: VarSet): Exp {
         require(this.anyOverlap(assignment))
 
         val simple = exps.map { it.maybeSimplify(assignment, f) }
@@ -520,11 +520,11 @@ abstract sealed class And : Complex() {
 abstract sealed class NonAnd : Complex() {
 
 
-    override fun assign(pics: Assignment, f: VarSpace): Exp {
+    override fun assign(pics: Assignment, f: VarSet): Exp {
         return Propagator.propagate(f, this, pics)
     }
 
-    override fun maybeSimplify(f: VarSpace): Exp = this
+    override fun maybeSimplify(f: VarSet): Exp = this
 
     override val vars: Set<Var> by lazy { exps.vars() }
 
@@ -533,7 +533,7 @@ abstract sealed class NonAnd : Complex() {
 
 class Or(override val exps: List<Exp>) : NonAnd(), Nary {
 
-    override fun simplify(assignment: Assignment, f: VarSpace): Exp {
+    override fun simplify(assignment: Assignment, f: VarSet): Exp {
         val ss = mutableListOf<Exp>()
         for (e in exps) {
             check(e !is Constant)
@@ -546,7 +546,7 @@ class Or(override val exps: List<Exp>) : NonAnd(), Nary {
         return f.mkOr(ss)
     }
 
-    override fun maybeSimplify(f: VarSpace): Exp = when (exps.size) {
+    override fun maybeSimplify(f: VarSet): Exp = when (exps.size) {
         0 -> f.mkFalse()
         1 -> exps[0]
         else -> this
@@ -590,7 +590,7 @@ class LitAnd(val map: Map<Var, Boolean>) : And(), Assignment, Nary {
         return m
     }
 
-    override fun assign(pics: Assignment, f: VarSpace): Exp {
+    override fun assign(pics: Assignment, f: VarSet): Exp {
         val affect = assignTest(pics)
         return when (affect) {
             AssignAffect.DUP -> this
@@ -641,7 +641,7 @@ class LitAnd(val map: Map<Var, Boolean>) : And(), Assignment, Nary {
         return assignLitsTest(litAnd.asIterable)
     }
 
-    override fun maybeSimplify(f: VarSpace): Exp = when (size) {
+    override fun maybeSimplify(f: VarSet): Exp = when (size) {
         0 -> f.mkTrue()
         1 -> first()
         else -> this
@@ -651,7 +651,7 @@ class LitAnd(val map: Map<Var, Boolean>) : And(), Assignment, Nary {
 
     fun eq(other: LitAnd) = map == other.map
 
-    override fun simplify(assignment: Assignment, f: VarSpace): Exp {
+    override fun simplify(assignment: Assignment, f: VarSet): Exp {
         val mm = LitAndBuilder()
         for (lit in asIterable) {
             val s = lit.maybeSimplify(assignment, f)
@@ -694,17 +694,17 @@ class ComplexAnd(override val exps: List<NonAnd>) : And(), Nary {
 
     fun first(): Exp = exps[0]
 
-    override fun maybeSimplify(f: VarSpace): Exp = when (size) {
+    override fun maybeSimplify(f: VarSet): Exp = when (size) {
         0 -> f.mkTrue()
         1 -> first()
         else -> this
     }
 
-    override fun simplify(assignment: Assignment, f: VarSpace): Exp {
+    override fun simplify(assignment: Assignment, f: VarSet): Exp {
         return f.mkAnd(exps, assignment)
     }
 
-    override fun assign(pics: Assignment, f: VarSpace): Exp {
+    override fun assign(pics: Assignment, f: VarSet): Exp {
         return Propagator.propagate(f, this, pics)
     }
 
@@ -730,11 +730,11 @@ class MixedAnd(val constraint: Complex, val lits: Assignment, val disjoint: Bool
 
     override fun computeLocalDisjoint(): Boolean = constraint.isDisjoint(lits)
 
-    override fun assign(pics: Assignment, f: VarSpace): Exp {
+    override fun assign(pics: Assignment, f: VarSet): Exp {
         return Propagator.propagate(f, this, pics)
     }
 
-    override fun maybeSimplify(f: VarSpace): Exp = if (disjoint) {
+    override fun maybeSimplify(f: VarSet): Exp = if (disjoint) {
         this
     } else {
         Propagator.propagate(f, constraint, lits)
@@ -757,7 +757,7 @@ class MixedAnd(val constraint: Complex, val lits: Assignment, val disjoint: Bool
     override val exps: Iterable<Exp>
         get() = listOf(constraint, lits.asExp)
 
-    override fun simplify(assignment: Assignment, f: VarSpace): Exp {
+    override fun simplify(assignment: Assignment, f: VarSet): Exp {
         throw UnsupportedOperationException()
     }
 

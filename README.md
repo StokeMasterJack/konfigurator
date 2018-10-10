@@ -3,11 +3,19 @@
 **_Note: this is in the experimental stage._**
 
 ### Overview
+This library is designed to provide the back-end logic for an interactive product configurator,
+where the user selects various product features thru the UI (say, Red, V6-Engine and Convertible) 
+and the framework determines:
+
+- which additional features _must_ be selected based on the current user pics
+- which features _cannot_ be selected based on the current user pics
+ 
 This tool allows you to:
  
-- Define a set of configuration rules comprised of:
+- Define a set of features. These are represented as boolean variables (VarSpace).
+- Define a set of constraints (in the form of boolean expressions) on a those variables (). 
   1. A VarSpace: a set of boolean variables representing the product features.      
-  2. A RuleSet: a set of constraints (in the form of boolean expressions) on a those variables.
+  2. A Pics: a set of constraints (in the form of boolean expressions) on a those variables.
 - Set user pics, then:
     - Test if the current configuration is valid
     - Compute a new, simplified constraint based on current configuration.
@@ -16,10 +24,10 @@ This tool allows you to:
       - Vars that are inferred _False_ represent features that **cannot** be picked based on current user pics
          
 
-### Defining rules using Kotlin DSL
-A rule set may be defined using the Kotlin DSL or 
+### Defining constraints using Kotlin DSL
+A constraint set may be defined using the Kotlin DSL or 
 by using the Kotlin API. 
-Here is a simple rule set using the Kotlin DSL:
+Here is a simple constraint set using the Kotlin DSL:
 
 ```kotlin
 class SimpleSpace : VarSpace() {
@@ -38,7 +46,7 @@ class SimpleSpace : VarSpace() {
     val green = +"green"
 
     //constraints on above vars
-    fun mkRuleSet() = mkRuleSet(
+    fun mkConstraintSet() = mkConstraintSet(
             conflict(a, b),
             conflict(a, c),
             requires(a, d),
@@ -50,11 +58,11 @@ class SimpleSpace : VarSpace() {
 }
 ```
 
-### Next, instantiate our VarSpace and RuleSet 
+### Next, instantiate our VarSpace and Pics 
 
 ```kotlin
 val vars: SimpleSpace = SimpleSpace()
-val rs1: RuleSet = vars.mkRuleSet1().apply { print() }
+val cs1: Pics = vars.mkConstraintSet1().apply { print() }
 ```
 
 This produces the following output:
@@ -76,7 +84,7 @@ Constraints:        //exactly our original constraint is returned
 ### Make a user pick: a = true
 
 ```kotlin
-val rs2 = rs1.assign(vars.a).apply { print() }
+val cs2 = cs1.assign(vars.a).apply { print() }
 ```
 
 The system computes inferred pics and simplified constraint.
@@ -94,7 +102,7 @@ Constraints:                //Constraint is simplified based on pics
 
 ### Make another user pic: f = true
 ```kotlin
-val rs3 = rs2.assign(vars.f).apply { print() }
+val cs3 = cs2.assign(vars.f).apply { print() }
 ```
 
 Here is the output:
@@ -109,7 +117,7 @@ Constraints:                       //Constraint is simplified even further
 
 ### Make another user pic: red = true
 ```kotlin
-val rs4 = rs3.assign(vars.red).apply { print() }
+val cs4 = cs3.assign(vars.red).apply { print() }
 ```
 
 Here is the output:
@@ -122,7 +130,7 @@ Constraints:                               //There is no constraint left
 
 ### Make another user pic: i = true
 ```kotlin
-val rs5 = rs4.assign(vars.i).apply { print() }
+val cs5 = cs4.assign(vars.i).apply { print() }
 ```
 
 The only thing that changed is var i moved 
@@ -140,7 +148,7 @@ Constraints:
 
 Note the use of bang operator in the DSL
 ```kotlin
-val rs6 = rs5.assign(!vars.g).apply { print() }
+val cs6 = cs5.assign(!vars.g).apply { print() }
 ```
 
 Note that the constraint now shows FAILED:

@@ -1,8 +1,8 @@
 package org.smartsoft.konfigurator.data
 
-import org.smartsoft.konfigurator.VarSpace
+import org.smartsoft.konfigurator.VarSet
 
-class CarSpace : VarSpace() {
+class Car : VarSet() {
 
     val T2513 = +"T2513"
     val T2514 = +"T2514"
@@ -30,7 +30,7 @@ class CarSpace : VarSpace() {
     val T6AT = +"T6AT"
     val ECVT = +"ECVT"
 
-    fun mkRuleSet1() = mkRuleSet(
+    fun mkConstraintSet1() = mkConstraintSet(
             xor(T2513, T2514, T2531, T2532, T2552, T2540, T2554, T2545, T2546, T2550, T2560),
             xor(L4, V6, Hybrid),
             xor(Base, LE, SE, XLE, Hyb),

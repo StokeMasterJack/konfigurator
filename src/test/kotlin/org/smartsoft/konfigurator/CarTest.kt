@@ -1,6 +1,6 @@
 package org.smartsoft.konfigurator
 
-import org.smartsoft.konfigurator.data.CarSpace
+import org.smartsoft.konfigurator.data.Car
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -9,12 +9,12 @@ class CarTest {
 
     @Test
     fun test1() {
-        CarSpace().run {
-            val rs1 = mkRuleSet1()
-            val rs2 = rs1.assign(L4, Base, T6AT)
-            val rs3 = rs1.assign(T2514)
-            assertEquals(rs2.effectiveConstraint, rs3.effectiveConstraint)
-            assertEquals(rs2.lits, rs3.lits)
+        Car().run {
+            val cs1 = mkConstraintSet1()
+            val cs2 = cs1.assign(L4, Base, T6AT)
+            val cs3 = cs1.assign(T2514)
+            assertEquals(cs2.effectiveConstraint, cs3.effectiveConstraint)
+            assertEquals(cs2.lits, cs3.lits)
         }
 
 
