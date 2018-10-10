@@ -2,6 +2,8 @@
 <project version="4">
   <component name="CompilerConfiguration">
     <bytecodeTargetLevel>
+      <module name="com.smartsoft-konfigurator_main" target="1.9" />
+      <module name="com.smartsoft-konfigurator_test" target="1.9" />
       <module name="konfigurator_main" target="1.9" />
       <module name="konfigurator_test" target="1.9" />
     </bytecodeTargetLevel>

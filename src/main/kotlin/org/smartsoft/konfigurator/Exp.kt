@@ -6,6 +6,9 @@ import kotlin.reflect.KClass
 
 
 /*
+
+Class hierarchy to represent a boolean expression as a propositional sentence, sd-DNNF or SDD
+
 Exp
     Simple
         Constant
@@ -277,6 +280,11 @@ interface Binary {
 
 interface Nary
 
+/**
+ *
+ * The [negation, as defined in propositional calculus](https://en.wikipedia.org/wiki/Negation) (aka not) of a [Complex] expression.
+ * Note: [Not] is for negating a [Complex] expression, [NegVar] is for negating a [Var]
+ */
 class Not(val exp: Complex) : NonAnd() {
 
     init {
@@ -300,6 +308,9 @@ class Not(val exp: Complex) : NonAnd() {
 
 }
 
+/**
+ *  [A propositional literal, as defined in propositional calculus](https://en.wikipedia.org/wiki/Literal_(mathematical_logic))
+ */
 sealed class Lit : Simple(), Assignment {
 
     abstract val vr: Var
@@ -371,6 +382,9 @@ sealed class Lit : Simple(), Assignment {
 }
 
 
+/**
+ *  [A propositional variable, as defined in propositional calculus](https://en.wikipedia.org/wiki/Propositional_variable)
+ */
 class Var(val id: VarId) : Lit() {
 
     override val vr: Var get() = this
@@ -385,6 +399,10 @@ class Var(val id: VarId) : Lit() {
 }
 
 
+/**
+ * The The [negation, as defined in propositional calculus](https://en.wikipedia.org/wiki/Negation) (aka not) of a [Var]
+ * Note: [Not] is for negating a [Complex] expression, [NegVar] is for negating a [Var]
+ */
 class NegVar(val _vr: Var) : Lit() {
 
     override val vr: Var get() = _vr
@@ -412,6 +430,9 @@ class Conflict(override val e1: Exp, override val e2: Exp) : NonAnd(), Binary {
 }
 
 
+/**
+ * If-and-only-if, also called a bi-implication
+ */
 class Iff(override val e1: Exp, override val e2: Exp) : NonAnd(), Binary {
 
     override fun simplify(assignment: Assignment, f: ExpFactory): Exp {

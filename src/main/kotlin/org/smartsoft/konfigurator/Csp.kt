@@ -56,6 +56,9 @@ class Csp(val expFactory: ExpFactory, val constraint: Exp, val picks: Set<Lit> =
         return constraint.isSat(expFactory)
     }
 
+    /**
+     * Compiles boolean expression into DNNF form
+     */
     fun toDnnf(): Exp {
         return constraint.toDnnf(expFactory)
     }
