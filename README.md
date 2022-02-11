@@ -1,6 +1,5 @@
 # Konfigurator - a product configurator engine
 
-**_Note: this is in the experimental stage._**
 
 ### Overview
 This library is designed to provide the back-end logic for an interactive product configurator,
